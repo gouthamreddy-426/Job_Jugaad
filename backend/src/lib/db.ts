@@ -1,9 +1,9 @@
 import { Pool } from "pg";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.warn("[WARN] DATABASE_URL not set. Database operations will fail.");
+  console.error("[DB] Neither SUPABASE_DB_URL nor DATABASE_URL is set. Database writes will fail.");
 }
 
 export const pool = new Pool({
@@ -11,11 +11,15 @@ export const pool = new Pool({
   ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on("connect", () => {
+  console.log("[DB] Connected to Supabase PostgreSQL");
 });
 
 pool.on("error", (err) => {
-  console.error("[DB] Unexpected pool error:", err.message);
+  console.error("[DB] Pool error:", err.message);
 });
 
 export async function query<T = Record<string, unknown>>(

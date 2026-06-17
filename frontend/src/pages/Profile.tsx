@@ -278,16 +278,25 @@ export default function Profile() {
           <div className="grid grid-cols-2 gap-3">
             <Link href="/analyze" className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors border border-primary/10 group">
               <div className="w-9 h-9 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <FileText className="w-4.5 h-4.5 text-primary" />
+                <FileText className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <p className="text-sm font-bold text-foreground">Analyze Resume</p>
                 <p className="text-xs text-muted-foreground">New analysis</p>
               </div>
             </Link>
-            <Link href="/practice" className="flex items-center gap-3 p-4 rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors border border-accent/10 group">
+            <Link href="/dashboard" className="flex items-center gap-3 p-4 rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors border border-accent/10 group">
               <div className="w-9 h-9 rounded-lg bg-accent/10 group-hover:bg-accent/20 flex items-center justify-center transition-colors">
-                <BarChart2 className="w-4.5 h-4.5 text-accent" />
+                <BarChart2 className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Dashboard</p>
+                <p className="text-xs text-muted-foreground">History & stats</p>
+              </div>
+            </Link>
+            <Link href="/practice" className="flex items-center gap-3 p-4 rounded-xl bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors border border-indigo-500/10 group col-span-2">
+              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">
+                <BarChart2 className="w-5 h-5 text-indigo-500" />
               </div>
               <div>
                 <p className="text-sm font-bold text-foreground">Practice Arena</p>

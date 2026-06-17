@@ -3,8 +3,8 @@ import { Link } from "wouter";
 import { useRef, useState, useEffect } from "react";
 import {
   ArrowRight, CheckCircle2, Zap, BarChart2, Target, BrainCircuit,
-  Rocket, TrendingUp, FileText, Briefcase, ChevronRight, Star,
-  Moon, Sun, Trophy, User
+  Rocket, TrendingUp, FileText, Briefcase, ChevronRight,
+  Moon, Sun, Trophy, User, Star
 } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -376,9 +376,14 @@ export default function Landing() {
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           {user ? (
-            <Link href="/profile" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
-              <User className="w-4 h-4" /> Profile
-            </Link>
+            <div className="hidden sm:flex items-center gap-2">
+              <Link href="/dashboard" className="items-center gap-1.5 px-4 py-2 rounded-full border-2 border-primary text-primary text-sm font-bold hover:bg-primary/5 transition-all inline-flex">
+                <BarChart2 className="w-4 h-4" /> Dashboard
+              </Link>
+              <Link href="/profile" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
+                <User className="w-4 h-4" /> Profile
+              </Link>
+            </div>
           ) : (
             <>
               <Link href="/login" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border-2 border-primary text-primary text-sm font-bold hover:bg-primary/5 transition-all">

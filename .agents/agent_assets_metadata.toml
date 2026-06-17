@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "uJFmELHkH1DTbD3RWUQJQ"
+uri = "file://jobjugaad-ai.zip"
+type = "unspecified"
+title = "Job Jugaad AI — Final Clean Source Code"

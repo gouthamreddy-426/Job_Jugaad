@@ -11,6 +11,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import Practice from "@/pages/Practice";
 import Profile from "@/pages/Profile";
+import Dashboard from "@/pages/Dashboard";
 import AuthCallback from "@/pages/AuthCallback";
 import { AnalysisProvider } from "@/context/AnalysisContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/signup" component={Signup} />
       <Route path="/practice" component={Practice} />
       <Route path="/profile" component={Profile} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/auth/callback" component={AuthCallback} />
       <Route component={NotFound} />
     </Switch>
