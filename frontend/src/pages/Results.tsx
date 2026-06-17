@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, Link } from "wouter";
 import { useAnalysis } from "@/context/AnalysisContext";
 import type { SectionImprovement } from "@/types/analysis";
 import {
-  CheckCircle2, RefreshCw, ChevronRight, Copy, Activity,
+  CheckCircle2, RefreshCw, Copy, Activity,
   Moon, Sun, Dumbbell, PlusCircle, MinusCircle, BookOpen,
   Clock, TrendingUp, Star, Quote, ChevronDown, ChevronUp,
   AlertCircle
@@ -16,6 +16,9 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from "recharts";
 import { useTheme } from "@/context/ThemeContext";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+gsap.registerPlugin(ScrollTrigger);
 
 function useCountUp(target: number, duration = 1500) {
   const [count, setCount] = useState(0);
@@ -118,12 +121,55 @@ export default function Results() {
   const { result } = useAnalysis();
   const { toast } = useToast();
   const { theme, toggle } = useTheme();
+  const pageRef = useRef<HTMLDivElement>(null);
 
   const atsScore = useCountUp(result?.atsScore ?? 0, 1500);
 
   useEffect(() => {
     if (!result) setLocation("/analyze");
   }, [result, setLocation]);
+
+  useEffect(() => {
+    if (!result) return;
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
+      tl.fromTo(".results-nav",
+        { y: -30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7 }
+      )
+      .fromTo(".results-header",
+        { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, "-=0.4"
+      )
+      .fromTo(".results-hero",
+        { y: 60, opacity: 0, scale: 0.97 },
+        { y: 0, opacity: 1, scale: 1, duration: 1, ease: "back.out(1.3)" }, "-=0.5"
+      )
+      .fromTo(".results-stat",
+        { y: 30, opacity: 0, scale: 0.9 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.1, ease: "back.out(1.7)" }, "-=0.6"
+      );
+
+      ScrollTrigger.batch(".results-chart", {
+        start: "top 88%",
+        onEnter: (batch) => gsap.fromTo(batch,
+          { y: 40, opacity: 0, scale: 0.95 },
+          { y: 0, opacity: 1, scale: 1, duration: 0.7, stagger: 0.12, ease: "back.out(1.4)" }
+        ),
+        once: true,
+      });
+      ScrollTrigger.batch(".results-section", {
+        start: "top 90%",
+        onEnter: (batch) => gsap.fromTo(batch,
+          { y: 40, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.7, stagger: 0.1, ease: "power3.out" }
+        ),
+        once: true,
+      });
+
+      gsap.to(".results-orb-1", { x: 60, y: -40, duration: 10, repeat: -1, yoyo: true, ease: "sine.inOut" });
+      gsap.to(".results-orb-2", { x: -50, y: 50, duration: 13, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 4 });
+    }, pageRef);
+    return () => ctx.revert();
+  }, [result]);
 
   if (!result) return null;
 
@@ -177,6 +223,7 @@ export default function Results() {
 
   return (
     <div
+      ref={pageRef}
       className="min-h-screen font-sans relative overflow-x-hidden dark:bg-background dark:text-foreground"
       style={{
         background: theme === "dark"
@@ -184,11 +231,11 @@ export default function Results() {
           : "linear-gradient(135deg, hsl(223 100% 98%) 0%, hsl(250 60% 97%) 40%, hsl(330 40% 97%) 100%)",
       }}
     >
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="results-orb-1 absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="results-orb-2 absolute bottom-0 left-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Sticky Nav */}
-      <div className="sticky top-0 z-50 bg-white/70 dark:bg-card/80 backdrop-blur-xl border-b border-white/50 dark:border-border px-4 py-3">
+      <div className="results-nav sticky top-0 z-50 bg-white/70 dark:bg-card/80 backdrop-blur-xl border-b border-white/50 dark:border-border px-4 py-3">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="font-extrabold text-lg flex items-center gap-2">
             <Activity className="w-5 h-5 text-primary" /> Job Jugaad AI
@@ -210,7 +257,7 @@ export default function Results() {
       <div className="max-w-5xl mx-auto pt-12 pb-24 px-4 relative z-10 space-y-12">
 
         {/* Header */}
-        <div>
+        <div className="results-header">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 text-foreground">Your Gap Report</h1>
           <p className="text-muted-foreground font-medium">
             Generated {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -218,9 +265,8 @@ export default function Results() {
         </div>
 
         {/* Hero Score Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-          className="w-full bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-3xl shadow-xl p-8 flex flex-col md:flex-row items-center gap-10 border border-white/60 dark:border-border"
+        <div
+          className="results-hero w-full bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-3xl shadow-xl p-8 flex flex-col md:flex-row items-center gap-10 border border-white/60 dark:border-border"
         >
           <div className="relative w-56 h-56 flex items-center justify-center shrink-0">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -244,18 +290,18 @@ export default function Results() {
               { label: "Industry Benchmark", value: `${result.industryBenchmark}`, sub: "avg score for this role", color: "text-yellow-500" },
               { label: "Skills Found", value: `${result.matchedSkills.length}/${result.matchedSkills.length + result.missingSkills.length}`, sub: "total skills mapped", color: "text-emerald-500" },
             ].map((stat, i) => (
-              <div key={i} className="bg-white/60 dark:bg-card/60 backdrop-blur p-4 rounded-2xl flex flex-col gap-1">
+              <div key={i} className="results-stat bg-white/60 dark:bg-card/60 backdrop-blur p-4 rounded-2xl flex flex-col gap-1">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{stat.label}</span>
                 <span className={`text-3xl font-extrabold ${stat.color}`}>{stat.value}</span>
                 <span className="text-xs text-muted-foreground font-medium">{stat.sub}</span>
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
+          <div className="results-chart bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
             <h3 className="text-base font-extrabold mb-4 text-center">Keyword Coverage</h3>
             <div className="h-52 relative">
               <ResponsiveContainer width="100%" height="100%">
@@ -272,7 +318,7 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
+          <div className="results-chart bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
             <h3 className="text-base font-extrabold mb-4 text-center">Gaps by Category</h3>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -287,7 +333,7 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
+          <div className="results-chart bg-white dark:bg-card p-6 rounded-3xl border border-border shadow-sm">
             <h3 className="text-base font-extrabold mb-4 text-center">Skill Radar</h3>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -304,7 +350,7 @@ export default function Results() {
         </div>
 
         {/* Skill Gap Heat Map */}
-        <div className="bg-white dark:bg-card p-8 rounded-3xl border border-border shadow-sm">
+        <div className="results-section bg-white dark:bg-card p-8 rounded-3xl border border-border shadow-sm">
           <div className="mb-4">
             <h3 className="text-2xl font-extrabold text-foreground">Skill Gap Heat Map</h3>
             <p className="text-sm font-medium text-muted-foreground">Hover each card for a tip. Sorted by urgency.</p>
@@ -353,7 +399,7 @@ export default function Results() {
         </div>
 
         {/* Benchmark Chart */}
-        <div className="bg-white dark:bg-card p-8 rounded-3xl border border-border shadow-sm">
+        <div className="results-section bg-white dark:bg-card p-8 rounded-3xl border border-border shadow-sm">
           <h3 className="text-2xl font-extrabold text-foreground mb-6">Score vs Benchmark</h3>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">

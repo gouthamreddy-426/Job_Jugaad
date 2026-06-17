@@ -36,17 +36,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, name: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
-    });
-    return { error: error?.message ?? null };
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { error: json.error ?? "Signup failed" };
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: "Account created! Please log in." };
+      return { error: null };
+    } catch {
+      return { error: "Network error. Please try again." };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    if (error) {
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        return { error: "Email not confirmed. Please check your inbox or use Google sign-in." };
+      }
+      if (error.message.toLowerCase().includes("invalid login credentials")) {
+        return { error: "Wrong email or password. Please try again." };
+      }
+      return { error: error.message };
+    }
+    return { error: null };
   };
 
   const signOut = async () => {

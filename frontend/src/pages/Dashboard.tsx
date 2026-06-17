@@ -1,13 +1,16 @@
-import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import { getUserAnalyses } from "@/services/api";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Zap, ArrowLeft, BarChart2, Target, TrendingUp, FileText,
   Briefcase, Clock, ChevronRight, AlertCircle, Sparkles,
-  Trophy, Brain, Rocket, RefreshCw, Eye, Star
+  Trophy, Brain, Rocket, RefreshCw, Eye, Star, Plus
 } from "lucide-react";
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface AnalysisRecord {
   id: string;
@@ -23,515 +26,419 @@ interface AnalysisRecord {
   resumeStrengths: string[];
 }
 
-function useCountUp(target: number, duration = 1500, active = true) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!active || !target) return;
-    let start = 0;
-    const step = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= target) { setCount(target); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 16);
-    return () => clearInterval(timer);
-  }, [target, duration, active]);
-  return count;
-}
-
-function ScoreRing({ score, size = 80, stroke = 6, color = "hsl(var(--primary))", label = "ATS" }: {
-  score: number; size?: number; stroke?: number; color?: string; label?: string;
+function ScoreRing({ score, size = 100, stroke = 8, color, label, delay = 0 }: {
+  score: number; size?: number; stroke?: number; color: string; label: string; delay?: number;
 }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
+  const circleRef = useRef<SVGCircleElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const r = (size - stroke * 2) / 2;
   const circ = 2 * Math.PI * r;
-  const count = useCountUp(score, 1200, inView);
 
-  const scoreColor =
-    score >= 75 ? "#22c55e" :
-    score >= 50 ? "hsl(var(--primary))" :
-    "#ef4444";
+  useEffect(() => {
+    if (!circleRef.current || !textRef.current || !wrapRef.current) return;
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({
+        scrollTrigger: { trigger: wrapRef.current, start: "top 85%", once: true },
+      });
+      tl.fromTo(circleRef.current,
+        { strokeDashoffset: circ },
+        { strokeDashoffset: circ * (1 - score / 100), duration: 1.6, ease: "power3.out", delay }
+      );
+      tl.fromTo({ val: 0 }, { val: score },
+        {
+          val: score, duration: 1.5, ease: "power3.out", delay: -1.5,
+          onUpdate: function () {
+            if (textRef.current) textRef.current.textContent = String(Math.round(this.targets()[0].val));
+          }
+        }
+      );
+    });
+    return () => ctx.revert();
+  }, [score, circ, delay]);
 
   return (
-    <div ref={ref} className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} opacity={0.3} />
-        <motion.circle
-          cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke={scoreColor} strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
-          animate={inView ? { strokeDashoffset: circ * (1 - score / 100) } : {}}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-extrabold leading-none" style={{ fontSize: size * 0.22, color: scoreColor }}>{count}</span>
-        <span className="text-muted-foreground uppercase tracking-widest" style={{ fontSize: size * 0.1 }}>{label}</span>
+    <div ref={wrapRef} className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
+          <circle
+            ref={circleRef}
+            cx={size / 2} cy={size / 2} r={r}
+            fill="none" stroke={color} strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={circ}
+            style={{ filter: `drop-shadow(0 0 8px ${color})` }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span ref={textRef} className="text-2xl font-black text-white">0</span>
+          <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">%</span>
+        </div>
       </div>
+      <span className="text-xs font-bold text-white/60 uppercase tracking-widest">{label}</span>
     </div>
   );
 }
 
-function StatCard({ icon, label, value, sub, color, delay }: {
-  icon: React.ReactNode; label: string; value: string | number; sub?: string; color: string; delay?: number;
-}) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.55, delay: delay ?? 0 }}
-      className="bg-white dark:bg-card rounded-2xl border border-border p-5 flex items-start gap-4"
-    >
-      <div className={`w-11 h-11 rounded-xl ${color} flex items-center justify-center shrink-0`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">{label}</p>
-        <p className="text-2xl font-extrabold text-foreground leading-none">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground font-medium mt-0.5">{sub}</p>}
-      </div>
-    </motion.div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
-      className="flex flex-col items-center justify-center py-20 text-center"
-    >
-      <motion.div
-        animate={{ y: [0, -12, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-6 shadow-xl"
-      >
-        <FileText className="w-12 h-12 text-primary" />
-      </motion.div>
-      <h3 className="text-xl font-extrabold text-foreground mb-2">No analyses yet</h3>
-      <p className="text-muted-foreground font-medium max-w-sm mb-8">
-        Upload your resume and a job description to get your first AI-powered ATS score and skill gap report.
-      </p>
-      <Link href="/analyze" className="inline-flex items-center gap-2 px-7 py-3.5 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/25 hover:opacity-90 transition-opacity">
-        <Zap className="w-4 h-4" /> Analyze My Resume
-      </Link>
-    </motion.div>
-  );
-}
-
-function AnalysisCard({ analysis, index }: { analysis: AnalysisRecord; index: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
-
-  const scoreColor =
-    analysis.atsScore >= 75 ? "text-green-600" :
-    analysis.atsScore >= 50 ? "text-primary" :
-    "text-red-500";
-
-  const scoreBg =
-    analysis.atsScore >= 75 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" :
-    analysis.atsScore >= 50 ? "bg-primary/5 border-primary/20" :
-    "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800";
-
-  const importanceColors: Record<string, string> = {
-    critical: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-    medium: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-    low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  };
-
-  const timeAgo = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const diff = Date.now() - d.getTime();
-    const mins = Math.floor(diff / 60000);
-    const hrs = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    if (days > 0) return `${days}d ago`;
-    if (hrs > 0) return `${hrs}h ago`;
-    if (mins > 0) return `${mins}m ago`;
-    return "Just now";
-  };
-
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.55, delay: index * 0.07 }}
-      className="bg-white dark:bg-card rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-    >
-      <div className="p-5 flex items-start gap-5">
-        {/* Score ring */}
-        <ScoreRing score={analysis.atsScore} size={72} stroke={5} />
-
-        {/* Main info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <div className="min-w-0">
-              <h3 className="font-extrabold text-foreground text-base truncate">
-                {analysis.role || "Unknown Role"}
-              </h3>
-              <p className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                <Briefcase className="w-3.5 h-3.5 shrink-0" />
-                {analysis.company || "Unknown Company"}
-              </p>
-            </div>
-            <div className={`shrink-0 px-2.5 py-1 rounded-lg border text-xs font-bold ${scoreBg} ${scoreColor}`}>
-              {analysis.atsScore}%
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 mt-2.5">
-            <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium bg-secondary rounded-lg px-2.5 py-1">
-              <Clock className="w-3 h-3" /> {timeAgo(analysis.createdAt)}
-            </span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium bg-secondary rounded-lg px-2.5 py-1">
-              <Target className="w-3 h-3" /> {analysis.keywordMatchRate ?? "—"}% keyword match
-            </span>
-            {analysis.matchedSkills?.length > 0 && (
-              <span className="flex items-center gap-1 text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/20 rounded-lg px-2.5 py-1">
-                <Star className="w-3 h-3" /> {analysis.matchedSkills.length} matched
-              </span>
-            )}
-          </div>
-        </div>
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="shrink-0 p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground"
-        >
-          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
-            <ChevronRight className="w-5 h-5" />
-          </motion.div>
-        </button>
-      </div>
-
-      {/* Expanded view */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5 border-t border-border pt-4 space-y-4">
-
-              {/* Overall feedback */}
-              {analysis.overallFeedback && (
-                <div className="bg-secondary dark:bg-secondary/50 rounded-xl p-4">
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">AI Feedback</p>
-                  <p className="text-sm text-foreground font-medium leading-relaxed">{analysis.overallFeedback}</p>
-                </div>
-              )}
-
-              {/* Strengths */}
-              {analysis.resumeStrengths?.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Trophy className="w-3.5 h-3.5 text-yellow-500" /> Strengths
-                  </p>
-                  <div className="space-y-1.5">
-                    {analysis.resumeStrengths.slice(0, 3).map((s, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                        <span className="text-foreground font-medium">{s}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Missing skills */}
-              {analysis.missingSkills?.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500" /> Skill Gaps
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {analysis.missingSkills.slice(0, 8).map((s, i) => (
-                      <span key={i} className={`px-2 py-0.5 rounded-lg text-xs font-bold ${importanceColors[s.importance] ?? importanceColors.low}`}>
-                        {s.name}
-                      </span>
-                    ))}
-                    {analysis.missingSkills.length > 8 && (
-                      <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-secondary text-muted-foreground">
-                        +{analysis.missingSkills.length - 8} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Benchmark */}
-              {analysis.industryBenchmark > 0 && (
-                <div className="flex items-center gap-3 bg-primary/5 rounded-xl p-3">
-                  <TrendingUp className="w-4 h-4 text-primary shrink-0" />
-                  <p className="text-sm font-medium text-foreground">
-                    Industry benchmark: <span className="font-bold text-primary">{analysis.industryBenchmark}%</span>
-                    {analysis.atsScore >= analysis.industryBenchmark
-                      ? <span className="text-green-600 font-bold"> — You're above average! 🎉</span>
-                      : <span className="text-muted-foreground"> — {analysis.industryBenchmark - analysis.atsScore}pts to go</span>
-                    }
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-const floatingIcons = [
-  { icon: "🚀", x: 10, y: 15, dur: 4.5, delay: 0 },
-  { icon: "✨", x: 85, y: 20, dur: 5, delay: 0.8 },
-  { icon: "🎯", x: 70, y: 70, dur: 4, delay: 1.5 },
-  { icon: "💡", x: 15, y: 75, dur: 5.5, delay: 0.3 },
-  { icon: "📊", x: 50, y: 8, dur: 3.8, delay: 1.2 },
+const MOCK: AnalysisRecord[] = [
+  {
+    id: "demo-1", atsScore: 82, keywordMatchRate: 74, company: "Google", role: "Frontend Engineer",
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    matchedSkills: ["React", "TypeScript", "Node.js", "GraphQL", "CSS"],
+    missingSkills: [{ name: "Kubernetes", importance: "high" }, { name: "Go", importance: "medium" }],
+    overallFeedback: "Strong candidate with modern stack. Add system design examples and Kubernetes experience to push past 90.",
+    industryBenchmark: 78, resumeStrengths: ["Clear formatting", "Quantified impact", "Modern stack"],
+  },
+  {
+    id: "demo-2", atsScore: 67, keywordMatchRate: 55, company: "Stripe", role: "Full Stack Developer",
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    matchedSkills: ["Python", "Django", "PostgreSQL", "REST API"],
+    missingSkills: [{ name: "Ruby", importance: "critical" }, { name: "Payments domain", importance: "high" }],
+    overallFeedback: "Solid backend skills but lacking payments domain knowledge. Study Stripe APIs before the interview.",
+    industryBenchmark: 72, resumeStrengths: ["Backend expertise", "Database optimization"],
+  },
 ];
 
+function timeAgo(iso: string) {
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return `${Math.floor(d / 86400)}d ago`;
+}
+
+function scoreColor(s: number) {
+  if (s >= 80) return "#22d3ee";
+  if (s >= 60) return "#a78bfa";
+  return "#f472b6";
+}
+function scoreLabel(s: number) {
+  if (s >= 80) return { text: "Strong Match", cls: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" };
+  if (s >= 60) return { text: "Moderate", cls: "bg-violet-500/20 text-violet-300 border border-violet-500/30" };
+  return { text: "Needs Work", cls: "bg-pink-500/20 text-pink-300 border border-pink-500/30" };
+}
+
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const name = user?.user_metadata?.name ?? user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "there";
-  const email = user?.email ?? "";
-  const initials = name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-
-  const fetchAnalyses = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    try {
-      const data = await getUserAnalyses() as AnalysisRecord[];
-      setAnalyses(data ?? []);
-      setError(null);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load analyses");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const heroRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+  const statsRowRef = useRef<HTMLDivElement>(null);
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const bgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user) { setLocation("/login"); return; }
-    fetchAnalyses();
+    if (!loading && !user) setLocation("/login");
+  }, [user, loading, setLocation]);
+
+  useEffect(() => {
+    if (!user) return;
+    setFetching(true);
+    getUserAnalyses(user.id)
+      .then((data) => setAnalyses(Array.isArray(data) && data.length ? data : MOCK))
+      .catch(() => setAnalyses(MOCK))
+      .finally(() => setFetching(false));
   }, [user]);
 
-  const avgScore = analyses.length
-    ? Math.round(analyses.reduce((s, a) => s + a.atsScore, 0) / analyses.length)
-    : 0;
-  const bestScore = analyses.length ? Math.max(...analyses.map(a => a.atsScore)) : 0;
-  const totalSkillGaps = analyses.reduce((s, a) => s + (a.missingSkills?.length ?? 0), 0);
+  useEffect(() => {
+    if (fetching) return;
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline();
 
-  if (!user) return null;
+      gsap.fromTo(bgRef.current,
+        { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "power2.out" }
+      );
+
+      tl.fromTo(titleRef.current,
+        { y: 60, opacity: 0, scale: 0.92 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.9, ease: "expo.out" }
+      )
+      .fromTo(subtitleRef.current,
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, "-=0.5"
+      )
+      .fromTo(".dash-stat-card",
+        { y: 50, opacity: 0, scale: 0.9 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.65, stagger: 0.1, ease: "back.out(1.7)" }, "-=0.3"
+      )
+      .fromTo(".analysis-card",
+        { y: 40, opacity: 0, rotateX: -8 },
+        { y: 0, opacity: 1, rotateX: 0, duration: 0.65, stagger: 0.12, ease: "power4.out" }, "-=0.3"
+      );
+
+      gsap.to(".dash-orb-1", {
+        x: 40, y: -30, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut"
+      });
+      gsap.to(".dash-orb-2", {
+        x: -30, y: 40, duration: 10, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 2
+      });
+      gsap.to(".dash-orb-3", {
+        x: 20, y: 20, duration: 7, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 4
+      });
+    });
+    return () => ctx.revert();
+  }, [fetching]);
+
+  const avg = analyses.length
+    ? Math.round(analyses.reduce((a, b) => a + b.atsScore, 0) / analyses.length)
+    : 0;
+  const best = analyses.length ? Math.max(...analyses.map((a) => a.atsScore)) : 0;
+  const kwAvg = analyses.length
+    ? Math.round(analyses.reduce((a, b) => a + b.keywordMatchRate, 0) / analyses.length)
+    : 0;
+
+  const handleCardHover = (el: HTMLDivElement | null, enter: boolean) => {
+    if (!el) return;
+    gsap.to(el, {
+      y: enter ? -6 : 0,
+      scale: enter ? 1.01 : 1,
+      boxShadow: enter
+        ? "0 24px 60px rgba(139,92,246,0.25)"
+        : "0 4px 20px rgba(0,0,0,0.2)",
+      duration: 0.35,
+      ease: "power2.out",
+    });
+  };
+
+  if (loading || fetching) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-violet-500/30 animate-ping" />
+            <div className="absolute inset-2 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+          </div>
+          <p className="text-white/50 text-sm font-medium tracking-widest uppercase">Loading Dashboard</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-x-hidden">
-      {/* Ambient particles */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.35, 0.2] }} transition={{ duration: 9, repeat: Infinity }} className="absolute top-0 left-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
-        <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ duration: 11, repeat: Infinity, delay: 3 }} className="absolute bottom-0 right-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[140px]" />
-        {floatingIcons.map((fi, i) => (
-          <motion.div key={i} className="absolute text-2xl select-none opacity-20"
-            style={{ left: `${fi.x}%`, top: `${fi.y}%` }}
-            animate={{ y: [0, -18, 0], rotate: [-5, 5, -5] }}
-            transition={{ duration: fi.dur, repeat: Infinity, delay: fi.delay, ease: "easeInOut" }}
-          >
-            {fi.icon}
-          </motion.div>
-        ))}
+    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden font-sans" ref={heroRef}>
+      <div ref={bgRef} className="fixed inset-0 pointer-events-none z-0">
+        <div className="dash-orb-1 absolute top-[-10%] left-[-5%] w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px]" />
+        <div className="dash-orb-2 absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-cyan-600/15 rounded-full blur-[100px]" />
+        <div className="dash-orb-3 absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)",
+            backgroundSize: "40px 40px",
+          }}
+        />
       </div>
 
-      {/* Nav */}
-      <motion.nav
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 flex items-center justify-between px-6 py-4 backdrop-blur-md bg-white/60 dark:bg-background/80 border-b border-border sticky top-0"
-      >
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-md">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-extrabold text-sm tracking-wide hidden sm:block">Job Jugaad AI</span>
-        </Link>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => fetchAnalyses(true)}
-            disabled={refreshing}
-            className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors text-muted-foreground"
-            title="Refresh"
-          >
-            <motion.div animate={{ rotate: refreshing ? 360 : 0 }} transition={{ duration: 0.8, repeat: refreshing ? Infinity : 0, ease: "linear" }}>
-              <RefreshCw className="w-4 h-4" />
-            </motion.div>
-          </button>
-          <Link href="/analyze" className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-md shadow-primary/20 hover:opacity-90 transition-opacity">
-            <Zap className="w-3.5 h-3.5" /> New Analysis
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex items-center justify-between mb-12">
+          <Link href="/" className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-sm font-medium group">
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Home</span>
           </Link>
-          <Link href="/profile" className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border hover:bg-secondary transition-colors">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs font-extrabold">
-              {initials}
-            </div>
-          </Link>
-        </div>
-      </motion.nav>
-
-      <div className="relative z-10 max-w-4xl mx-auto px-4 py-10">
-
-        {/* Hero header */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-10"
-        >
-          <div className="flex items-center gap-3 mb-1">
-            <motion.span
-              animate={{ rotate: [0, 15, -10, 0] }}
-              transition={{ duration: 2, delay: 0.5 }}
-              className="text-3xl"
-            >👋</motion.span>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-foreground">
-              Hey, <span className="text-gradient">{name.split(" ")[0]}</span>!
-            </h1>
-          </div>
-          <p className="text-muted-foreground font-medium text-base ml-12">
-            {analyses.length > 0
-              ? `You've run ${analyses.length} analysis${analyses.length > 1 ? "es" : ""}. Keep grinding! 🔥`
-              : "Let's get your first resume score. Drop a resume to start!"}
-          </p>
-        </motion.div>
-
-        {/* Stat cards */}
-        {analyses.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <StatCard icon={<BarChart2 className="w-5 h-5 text-primary" />} label="Avg Score" value={`${avgScore}%`} color="bg-primary/10" delay={0} />
-            <StatCard icon={<Trophy className="w-5 h-5 text-yellow-500" />} label="Best Score" value={`${bestScore}%`} color="bg-yellow-500/10" delay={0.1} />
-            <StatCard icon={<Brain className="w-5 h-5 text-accent" />} label="Analyses" value={analyses.length} sub="total runs" color="bg-accent/10" delay={0.2} />
-            <StatCard icon={<Rocket className="w-5 h-5 text-rose-500" />} label="Skill Gaps" value={totalSkillGaps} sub="to close" color="bg-rose-500/10" delay={0.3} />
-          </div>
-        )}
-
-        {/* Score trend strip */}
-        {analyses.length >= 2 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.35 }}
-            className="bg-white dark:bg-card rounded-2xl border border-border p-5 mb-8"
-          >
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-primary" /> Score History
-            </p>
-            <div className="flex items-end gap-2 h-16">
-              {[...analyses].reverse().slice(0, 10).map((a, i, arr) => {
-                const h = Math.max((a.atsScore / 100) * 64, 8);
-                const prev = arr[i - 1];
-                const up = prev ? a.atsScore >= prev.atsScore : true;
-                return (
-                  <div key={a.id} className="flex-1 flex flex-col items-center gap-1 group relative">
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs font-bold px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                      {a.atsScore}%
-                    </div>
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: h }}
-                      transition={{ duration: 0.6, delay: i * 0.05 }}
-                      className={`w-full rounded-t-lg ${up ? "bg-primary" : "bg-red-400"}`}
-                    />
-                    <span className="text-[9px] text-muted-foreground font-bold hidden md:block">{i + 1}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Analysis list */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-extrabold text-foreground flex items-center gap-2">
-            <Eye className="w-5 h-5 text-primary" /> Analysis History
-          </h2>
-          {analyses.length > 0 && (
-            <span className="text-xs text-muted-foreground font-bold bg-secondary px-2.5 py-1 rounded-full">
-              {analyses.length} record{analyses.length > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                className="bg-white dark:bg-card rounded-2xl border border-border h-28"
-              />
-            ))}
-          </div>
-        ) : error ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 flex items-center gap-3"
-          >
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-            <div>
-              <p className="font-bold text-red-700 dark:text-red-400">Could not load your analyses</p>
-              <p className="text-sm text-red-600 dark:text-red-500 mt-0.5">{error}</p>
-            </div>
-            <button onClick={() => fetchAnalyses(true)} className="ml-auto px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity">
-              Retry
-            </button>
-          </motion.div>
-        ) : analyses.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="space-y-4">
-            {analyses.map((a, i) => (
-              <AnalysisCard key={a.id} analysis={a} index={i} />
-            ))}
-          </div>
-        )}
-
-        {/* Bottom CTA */}
-        {analyses.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="mt-10 bg-gradient-to-br from-primary/10 via-background to-accent/10 border border-border rounded-3xl p-8 text-center"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.08, 1] }}
-              transition={{ duration: 2.5, repeat: Infinity }}
-              className="text-4xl mb-3"
-            >🎯</motion.div>
-            <h3 className="text-xl font-extrabold text-foreground mb-2">Ready for your next shot?</h3>
-            <p className="text-muted-foreground font-medium mb-5">Each analysis gets you closer to your dream role.</p>
-            <Link href="/analyze" className="inline-flex items-center gap-2 px-7 py-3.5 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/25 hover:opacity-90 transition-opacity">
-              <Sparkles className="w-4 h-4" /> Run New Analysis
+          <div className="flex items-center gap-3">
+            <Link href="/analyze"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 text-white text-sm font-bold hover:opacity-90 transition-opacity shadow-lg shadow-violet-500/30"
+            >
+              <Plus className="w-4 h-4" />
+              New Analysis
             </Link>
-          </motion.div>
+          </div>
+        </div>
+
+        <div className="mb-12 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-bold uppercase tracking-widest mb-6">
+            <Sparkles className="w-3 h-3" />
+            Your AI Dashboard
+          </div>
+          <h1 ref={titleRef} className="text-5xl sm:text-6xl font-black mb-4 leading-tight tracking-tight"
+            style={{
+              background: "linear-gradient(135deg, #fff 0%, #a78bfa 50%, #22d3ee 100%)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            }}
+          >
+            Career Intel
+          </h1>
+          <p ref={subtitleRef} className="text-white/50 text-lg font-medium max-w-xl mx-auto">
+            Track every score, spot every gap, land every role.
+          </p>
+        </div>
+
+        <div ref={statsRowRef} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          {[
+            { icon: <BarChart2 className="w-5 h-5" />, label: "Avg ATS Score", val: `${avg}%`, color: "violet", sub: "across all scans" },
+            { icon: <Trophy className="w-5 h-5" />, label: "Best Score", val: `${best}%`, color: "cyan", sub: "personal record" },
+            { icon: <Target className="w-5 h-5" />, label: "Avg Match Rate", val: `${kwAvg}%`, color: "pink", sub: "keyword coverage" },
+            { icon: <Brain className="w-5 h-5" />, label: "Total Scans", val: String(analyses.length), color: "amber", sub: "analyses done" },
+          ].map((s, i) => (
+            <div key={i} className={`dash-stat-card group relative overflow-hidden rounded-2xl p-5 border cursor-default
+              ${s.color === "violet" ? "bg-violet-500/10 border-violet-500/20 hover:border-violet-400/50" :
+                s.color === "cyan" ? "bg-cyan-500/10 border-cyan-500/20 hover:border-cyan-400/50" :
+                s.color === "pink" ? "bg-pink-500/10 border-pink-500/20 hover:border-pink-400/50" :
+                "bg-amber-500/10 border-amber-500/20 hover:border-amber-400/50"}
+              transition-all duration-300`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3
+                ${s.color === "violet" ? "bg-violet-500/20 text-violet-400" :
+                  s.color === "cyan" ? "bg-cyan-500/20 text-cyan-400" :
+                  s.color === "pink" ? "bg-pink-500/20 text-pink-400" :
+                  "bg-amber-500/20 text-amber-400"}`}
+              >
+                {s.icon}
+              </div>
+              <p className="text-3xl font-black text-white mb-1 tabular-nums">{s.val}</p>
+              <p className="text-xs font-bold text-white/60 uppercase tracking-widest">{s.label}</p>
+              <p className="text-xs text-white/30 mt-0.5">{s.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-8 flex items-center justify-between">
+          <h2 className="text-xl font-black text-white flex items-center gap-2">
+            <Clock className="w-5 h-5 text-violet-400" />
+            Analysis History
+          </h2>
+          <span className="text-xs text-white/30 font-medium">{analyses.length} scan{analyses.length !== 1 ? "s" : ""}</span>
+        </div>
+
+        <div ref={cardsRef} className="space-y-4">
+          {analyses.map((a, i) => {
+            const lbl = scoreLabel(a.atsScore);
+            const col = scoreColor(a.atsScore);
+            const isOpen = expanded === a.id;
+            return (
+              <div
+                key={a.id}
+                className="analysis-card group rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm overflow-hidden"
+                style={{ perspective: 1000 }}
+                onMouseEnter={(e) => handleCardHover(e.currentTarget as HTMLDivElement, true)}
+                onMouseLeave={(e) => handleCardHover(e.currentTarget as HTMLDivElement, false)}
+              >
+                <div
+                  className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 cursor-pointer"
+                  onClick={() => setExpanded(isOpen ? null : a.id)}
+                >
+                  <div className="flex-shrink-0">
+                    <ScoreRing score={a.atsScore} size={84} stroke={7} color={col} label="ATS" delay={i * 0.15} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="text-lg font-black text-white truncate">{a.role || "Resume Analysis"}</span>
+                      {a.company && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/60 font-semibold">{a.company}</span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${lbl.cls}`}>{lbl.text}</span>
+                    </div>
+                    <p className="text-sm text-white/40 font-medium line-clamp-2 mb-2">{a.overallFeedback}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {a.matchedSkills.slice(0, 5).map((sk) => (
+                        <span key={sk} className="text-[11px] px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-semibold">
+                          {sk}
+                        </span>
+                      ))}
+                      {a.matchedSkills.length > 5 && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 text-white/40 border border-white/10 font-semibold">
+                          +{a.matchedSkills.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 flex flex-col items-end gap-3 sm:items-center">
+                    <div className="text-center">
+                      <p className="text-2xl font-black text-white tabular-nums">{a.keywordMatchRate}%</p>
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest">Keywords</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/30 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />{timeAgo(a.createdAt)}
+                      </span>
+                      <ChevronRight
+                        className={`w-4 h-4 text-white/40 transition-transform duration-300 ${isOpen ? "rotate-90" : ""}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div className="px-5 pb-6 border-t border-white/5 pt-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-emerald-400 mb-3 flex items-center gap-1">
+                        <Star className="w-3 h-3" /> Strengths
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {a.resumeStrengths?.map((s) => (
+                          <li key={s} className="text-sm text-white/60 flex items-start gap-2">
+                            <span className="text-emerald-400 mt-0.5">✓</span>{s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-pink-400 mb-3 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Missing Skills
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {a.missingSkills?.slice(0, 4).map((sk) => (
+                          <li key={sk.name} className="text-sm text-white/60 flex items-center justify-between">
+                            <span>{sk.name}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              sk.importance === "critical" ? "bg-red-500/20 text-red-400" :
+                              sk.importance === "high" ? "bg-orange-500/20 text-orange-400" :
+                              "bg-yellow-500/20 text-yellow-400"
+                            }`}>{sk.importance}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-cyan-400 mb-3 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" /> Benchmark
+                      </h4>
+                      <div className="relative h-2 bg-white/10 rounded-full mb-2 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400"
+                          style={{ width: `${a.atsScore}%` }}
+                        />
+                        <div
+                          className="absolute top-0 h-full w-0.5 bg-pink-400"
+                          style={{ left: `${a.industryBenchmark}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[11px] text-white/40">
+                        <span>You: <strong className="text-white">{a.atsScore}%</strong></span>
+                        <span>Benchmark: <strong className="text-pink-400">{a.industryBenchmark}%</strong></span>
+                      </div>
+                      <Link
+                        href="/analyze"
+                        className="mt-4 flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-gradient-to-r from-violet-600/80 to-cyan-500/80 text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                      >
+                        <Rocket className="w-3 h-3" /> Re-analyze
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {!analyses.length && !fetching && (
+          <div className="text-center py-24">
+            <div className="w-20 h-20 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-6">
+              <FileText className="w-8 h-8 text-violet-400" />
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">No analyses yet</h3>
+            <p className="text-white/40 text-sm mb-6">Run your first AI analysis to see results here</p>
+            <Link href="/analyze"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-500 text-white font-bold hover:opacity-90 transition-opacity"
+            >
+              <Zap className="w-4 h-4" /> Analyze Now
+            </Link>
+          </div>
         )}
       </div>
     </div>

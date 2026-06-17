@@ -1,49 +1,36 @@
-import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import {
   User, Mail, Calendar, LogOut, ArrowLeft,
-  Camera, CheckCircle2, Zap, BarChart2, FileText,
-  Edit3, Save, X, Shield, Sparkles
+  CheckCircle2, Zap, BarChart2, FileText,
+  Edit3, Save, X, Shield, Sparkles, Trophy
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-const AVATAR_COLORS = [
-  ["from-violet-500 to-pink-500", "VP"],
-  ["from-blue-500 to-cyan-500", "BC"],
-  ["from-emerald-500 to-teal-500", "ET"],
-  ["from-orange-500 to-red-500", "OR"],
-  ["from-indigo-500 to-purple-500", "IP"],
-];
+gsap.registerPlugin(ScrollTrigger);
 
 function getAvatarGradient(email: string) {
-  const idx = email.charCodeAt(0) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[idx][0];
+  const grads = [
+    ["#7c3aed", "#ec4899"], ["#2563eb", "#06b6d4"],
+    ["#059669", "#0d9488"], ["#d97706", "#dc2626"],
+    ["#4f46e5", "#7c3aed"],
+  ];
+  return grads[email.charCodeAt(0) % grads.length];
 }
 
 function getInitials(name: string, email: string) {
-  if (name && name.trim()) {
-    const parts = name.trim().split(" ");
-    return parts.length >= 2
-      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-      : parts[0].slice(0, 2).toUpperCase();
+  if (name?.trim()) {
+    const p = name.trim().split(" ");
+    return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : p[0].slice(0, 2).toUpperCase();
   }
   return email.slice(0, 2).toUpperCase();
 }
 
-const particleCount = 20;
-const particles = Array.from({ length: particleCount }, (_, i) => ({
-  id: i,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  size: Math.random() * 4 + 2,
-  duration: Math.random() * 4 + 3,
-  delay: Math.random() * 2,
-}));
-
 export default function Profile() {
-  const { user, signOut, getToken } = useAuth();
+  const { user, signOut, } = useAuth();
   const [, setLocation] = useLocation();
   const [isEditingName, setIsEditingName] = useState(false);
   const [displayName, setDisplayName] = useState(
@@ -53,14 +40,83 @@ export default function Profile() {
   const [nameLoading, setNameLoading] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heroCardRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
+  const orbsRef = useRef<HTMLDivElement>(null);
+  const particlesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
+
+      gsap.fromTo(orbsRef.current?.children ?? [],
+        { opacity: 0 }, { opacity: 1, duration: 1.5, stagger: 0.3, ease: "power2.out" }
+      );
+
+      tl.fromTo(".profile-nav",
+        { y: -30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7 }
+      )
+      .fromTo(heroCardRef.current,
+        { y: 60, opacity: 0, rotateX: -10, scale: 0.95 },
+        { y: 0, opacity: 1, rotateX: 0, scale: 1, duration: 1.1 }, "-=0.3"
+      )
+      .fromTo(avatarRef.current,
+        { scale: 0, rotate: -180 },
+        { scale: 1, rotate: 0, duration: 0.9, ease: "back.out(2)" }, "-=0.5"
+      )
+      .fromTo(ringRef.current,
+        { scale: 0.5, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.8, ease: "elastic.out(1, 0.5)" }, "-=0.6"
+      )
+      .fromTo(".profile-info-card",
+        { y: 30, opacity: 0, scale: 0.95 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.6, stagger: 0.1, ease: "back.out(1.4)" }, "-=0.4"
+      )
+      .fromTo(".profile-action-card",
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, stagger: 0.08 }, "-=0.3"
+      );
+
+      gsap.to(".profile-orb-1", { x: 50, y: -40, duration: 9, repeat: -1, yoyo: true, ease: "sine.inOut" });
+      gsap.to(".profile-orb-2", { x: -40, y: 50, duration: 12, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 3 });
+      gsap.to(".profile-orb-3", { x: 30, y: 30, duration: 7, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 5 });
+
+      gsap.to(ringRef.current, {
+        rotate: 360, duration: 20, repeat: -1, ease: "none"
+      });
+
+      const cards = gsap.utils.toArray<HTMLElement>(".profile-info-card");
+      cards.forEach((card) => {
+        card.addEventListener("mouseenter", () => {
+          gsap.to(card, { y: -5, scale: 1.02, duration: 0.3, ease: "power2.out" });
+        });
+        card.addEventListener("mouseleave", () => {
+          gsap.to(card, { y: 0, scale: 1, duration: 0.3, ease: "power2.out" });
+        });
+      });
+
+      ScrollTrigger.batch(".profile-action-card", {
+        start: "top 90%",
+        onEnter: (batch) => gsap.fromTo(batch,
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.1, duration: 0.6, ease: "back.out(1.4)" }
+        ),
+        once: true,
+      });
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, [user]);
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground mb-4 font-medium">You need to be signed in to view your profile.</p>
-          <Link href="/login" className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-opacity">
+          <p className="text-white/50 mb-4 font-medium">You need to be signed in.</p>
+          <Link href="/login" className="px-6 py-2.5 bg-violet-600 text-white font-bold rounded-xl hover:opacity-90 transition-opacity">
             Sign In
           </Link>
         </div>
@@ -69,7 +125,7 @@ export default function Profile() {
   }
 
   const email = user.email ?? "";
-  const avatarGradient = getAvatarGradient(email);
+  const [grad1, grad2] = getAvatarGradient(email);
   const initials = getInitials(displayName, email);
   const createdAt = user.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
@@ -77,10 +133,7 @@ export default function Profile() {
   const provider = user.app_metadata?.provider ?? "email";
 
   const handleSaveName = async () => {
-    if (!editName.trim() || editName === displayName) {
-      setIsEditingName(false);
-      return;
-    }
+    if (!editName.trim() || editName === displayName) { setIsEditingName(false); return; }
     setNameLoading(true);
     const { error } = await supabase.auth.updateUser({ data: { name: editName.trim() } });
     setNameLoading(false);
@@ -99,233 +152,163 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden relative">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <motion.div
-          animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-primary/15 rounded-full blur-[120px]"
+    <div ref={containerRef} className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden font-sans">
+      <div ref={orbsRef} className="fixed inset-0 pointer-events-none z-0">
+        <div className="profile-orb-1 absolute top-[-15%] left-[-10%] w-[700px] h-[700px] rounded-full blur-[140px]"
+          style={{ background: `radial-gradient(circle, ${grad1}33, transparent)` }} />
+        <div className="profile-orb-2 absolute bottom-[-15%] right-[-10%] w-[600px] h-[600px] rounded-full blur-[120px]"
+          style={{ background: `radial-gradient(circle, ${grad2}2a, transparent)` }} />
+        <div className="profile-orb-3 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full blur-[100px] bg-violet-600/10" />
+        <div className="absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)",
+            backgroundSize: "32px 32px",
+          }}
         />
-        <motion.div
-          animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-          className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-accent/15 rounded-full blur-[120px]"
-        />
-        {particles.map((p) => (
-          <motion.div
-            key={p.id}
-            className="absolute rounded-full bg-primary/20"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size }}
-            animate={{ y: [0, -30, 0], opacity: [0, 0.6, 0] }}
-            transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
-          />
-        ))}
       </div>
 
-      {/* Nav */}
-      <motion.nav
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 flex items-center justify-between px-6 py-4 backdrop-blur-md bg-white/60 dark:bg-background/80 border-b border-border"
-      >
-        <Link href="/" className="flex items-center gap-2 font-bold text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back
+      <nav className="profile-nav relative z-10 flex items-center justify-between px-6 py-5 border-b border-white/5 backdrop-blur-md bg-white/[0.02]">
+        <Link href="/" className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-sm font-medium group">
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Home
         </Link>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${grad1}, ${grad2})` }}>
             <Zap className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-extrabold text-sm">Job Jugaad AI</span>
+          <span className="font-black text-sm">Job Jugaad AI</span>
         </div>
-      </motion.nav>
+      </nav>
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-12">
 
-        {/* Hero card */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative bg-white dark:bg-card rounded-3xl shadow-2xl shadow-primary/10 border border-border overflow-hidden mb-6"
-        >
-          {/* Gradient header */}
-          <div className={`h-28 bg-gradient-to-br ${avatarGradient} relative overflow-hidden`}>
-            <motion.div
-              animate={{ x: [0, 40, 0], y: [0, -20, 0] }}
-              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-[-30px] right-[-30px] w-40 h-40 bg-white/10 rounded-full"
-            />
-            <motion.div
-              animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
-              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-              className="absolute bottom-[-40px] left-[20%] w-32 h-32 bg-white/10 rounded-full"
-            />
+        <div ref={heroCardRef} className="relative rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-sm overflow-hidden mb-6">
+          <div className="h-32 relative overflow-hidden"
+            style={{ background: `linear-gradient(135deg, ${grad1}66, ${grad2}44)` }}>
+            <div className="absolute inset-0 opacity-30"
+              style={{ backgroundImage: "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.2) 0%, transparent 60%)" }} />
+            <div className="absolute top-3 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
+              <Trophy className="w-3 h-3 text-yellow-400" />
+              <span className="text-xs font-bold text-white">Pro Member</span>
+            </div>
           </div>
 
           <div className="px-8 pb-8">
-            {/* Avatar */}
-            <div className="relative -mt-12 mb-5 w-fit">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center text-white text-2xl font-extrabold shadow-xl border-4 border-white dark:border-card select-none`}
-              >
-                {initials}
-              </motion.div>
-              <motion.div
-                animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-white dark:border-card"
-              />
-            </div>
-
-            {/* Name */}
-            <div className="flex items-center gap-3 mb-1">
-              <AnimatePresence mode="wait">
-                {isEditingName ? (
-                  <motion.div
-                    key="editing"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      ref={inputRef}
-                      autoFocus
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setIsEditingName(false); }}
-                      className="text-2xl font-extrabold bg-secondary dark:bg-secondary border border-primary rounded-xl px-3 py-1 outline-none focus:ring-2 focus:ring-primary/30 text-foreground w-52"
-                    />
-                    <button onClick={handleSaveName} disabled={nameLoading} className="p-1.5 rounded-lg bg-primary text-white hover:opacity-90 transition-opacity">
-                      {nameLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-                    </button>
-                    <button onClick={() => setIsEditingName(false)} className="p-1.5 rounded-lg bg-secondary hover:bg-muted transition-colors text-muted-foreground">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                ) : (
-                  <motion.div key="display" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-                    <h1 className="text-2xl font-extrabold text-foreground">
-                      {displayName || "No name set"}
-                    </h1>
-                    <button
-                      onClick={() => { setEditName(displayName); setIsEditingName(true); }}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <AnimatePresence>
-              {nameSaved && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="flex items-center gap-1.5 text-green-600 text-sm font-medium mb-2"
+            <div className="relative -mt-14 mb-6 w-fit">
+              <div className="relative" style={{ width: 96, height: 96 }}>
+                <div ref={ringRef}
+                  className="absolute -inset-2 rounded-3xl border-2 border-dashed opacity-60"
+                  style={{ borderColor: grad1 }}
+                />
+                <div ref={avatarRef}
+                  className="w-24 h-24 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-2xl border-2 border-white/10 select-none relative z-10"
+                  style={{ background: `linear-gradient(135deg, ${grad1}, ${grad2})` }}
                 >
-                  <CheckCircle2 className="w-4 h-4" /> Name updated!
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  {initials}
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-400 rounded-full border-2 border-[#0a0a0f] z-20 animate-pulse" />
+            </div>
 
-            <p className="text-muted-foreground font-medium text-sm flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-accent" /> Job Jugaad AI Member
+            <div className="flex items-center gap-3 mb-1">
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setIsEditingName(false); }}
+                    className="text-2xl font-black bg-white/5 border border-white/20 rounded-xl px-3 py-1 outline-none focus:border-violet-500/50 text-white w-52"
+                  />
+                  <button onClick={handleSaveName} disabled={nameLoading}
+                    className="p-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                    style={{ background: `linear-gradient(135deg, ${grad1}, ${grad2})` }}>
+                    {nameLoading
+                      ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      : <Save className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => setIsEditingName(false)}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black text-white">{displayName || "No name set"}</h1>
+                  <button onClick={() => { setEditName(displayName); setIsEditingName(true); }}
+                    className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all">
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            {nameSaved && (
+              <div className="flex items-center gap-1.5 text-emerald-400 text-sm font-medium mb-2">
+                <CheckCircle2 className="w-4 h-4" /> Name saved!
+              </div>
+            )}
+            <p className="text-white/40 text-sm flex items-center gap-1.5 font-medium">
+              <Sparkles className="w-4 h-4" style={{ color: grad2 }} /> Job Jugaad AI Member
             </p>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Info cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           {[
-            { icon: <Mail className="w-5 h-5 text-primary" />, label: "Email", value: email, bg: "bg-primary/5" },
-            { icon: <Calendar className="w-5 h-5 text-accent" />, label: "Member Since", value: createdAt, bg: "bg-accent/5" },
-            { icon: <Shield className="w-5 h-5 text-emerald-500" />, label: "Sign-in Method", value: provider === "google" ? "Google OAuth" : "Email & Password", bg: "bg-emerald-500/5" },
-            { icon: <User className="w-5 h-5 text-indigo-500" />, label: "User ID", value: user.id.slice(0, 8) + "…", bg: "bg-indigo-500/5" },
-          ].map((item, i) => (
-            <motion.div
-              key={item.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 + i * 0.08 }}
-              className="bg-white dark:bg-card rounded-2xl border border-border p-5 flex items-start gap-4"
-            >
-              <div className={`w-10 h-10 rounded-xl ${item.bg} flex items-center justify-center shrink-0`}>
+            { icon: <Mail className="w-5 h-5" />, label: "Email", value: email, c: grad1 },
+            { icon: <Calendar className="w-5 h-5" />, label: "Member Since", value: createdAt, c: grad2 },
+            { icon: <Shield className="w-5 h-5" />, label: "Sign-in Method", value: provider === "google" ? "Google OAuth" : "Email & Password", c: "#22d3ee" },
+            { icon: <User className="w-5 h-5" />, label: "User ID", value: user.id.slice(0, 8) + "…", c: "#a78bfa" },
+          ].map((item) => (
+            <div key={item.label} className="profile-info-card group rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex items-start gap-4 cursor-default">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform"
+                style={{ background: `${item.c}1a`, color: item.c }}>
                 {item.icon}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">{item.label}</p>
-                <p className="text-sm font-bold text-foreground truncate">{item.value}</p>
+                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-0.5">{item.label}</p>
+                <p className="text-sm font-bold text-white truncate">{item.value}</p>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
-        {/* Quick actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="bg-white dark:bg-card rounded-2xl border border-border p-6 mb-6"
-        >
-          <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Quick Actions</h3>
+        <div className="profile-action-card rounded-2xl border border-white/10 bg-white/[0.03] p-6 mb-6">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
-            <Link href="/analyze" className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors border border-primary/10 group">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <FileText className="w-5 h-5 text-primary" />
+            <Link href="/analyze"
+              className="profile-action-card flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10 hover:border-white/20 group">
+              <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <FileText className="w-5 h-5 text-violet-400" />
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground">Analyze Resume</p>
-                <p className="text-xs text-muted-foreground">New analysis</p>
+                <p className="text-sm font-bold text-white">Analyze Resume</p>
+                <p className="text-xs text-white/30">New scan</p>
               </div>
             </Link>
-            <Link href="/dashboard" className="flex items-center gap-3 p-4 rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors border border-accent/10 group">
-              <div className="w-9 h-9 rounded-lg bg-accent/10 group-hover:bg-accent/20 flex items-center justify-center transition-colors">
-                <BarChart2 className="w-5 h-5 text-accent" />
+            <Link href="/dashboard"
+              className="profile-action-card flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10 hover:border-white/20 group">
+              <div className="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <BarChart2 className="w-5 h-5 text-cyan-400" />
               </div>
               <div>
-                <p className="text-sm font-bold text-foreground">Dashboard</p>
-                <p className="text-xs text-muted-foreground">History & stats</p>
-              </div>
-            </Link>
-            <Link href="/practice" className="flex items-center gap-3 p-4 rounded-xl bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors border border-indigo-500/10 group col-span-2">
-              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">
-                <BarChart2 className="w-5 h-5 text-indigo-500" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">Practice Arena</p>
-                <p className="text-xs text-muted-foreground">Mock interviews</p>
+                <p className="text-sm font-bold text-white">Dashboard</p>
+                <p className="text-xs text-white/30">History & stats</p>
               </div>
             </Link>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Sign out */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+        <button
+          onClick={handleSignOut}
+          disabled={signOutLoading}
+          className="profile-action-card w-full py-4 px-4 rounded-2xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-bold flex items-center justify-center gap-2 transition-all hover:border-red-500/40 disabled:opacity-60"
         >
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={handleSignOut}
-            disabled={signOutLoading}
-            className="w-full py-3.5 px-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-60"
-          >
-            {signOutLoading
-              ? <div className="w-5 h-5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
-              : <LogOut className="w-5 h-5" />}
-            {signOutLoading ? "Signing out..." : "Sign Out"}
-          </motion.button>
-        </motion.div>
-
+          {signOutLoading
+            ? <div className="w-5 h-5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+            : <LogOut className="w-5 h-5" />}
+          {signOutLoading ? "Signing out…" : "Sign Out"}
+        </button>
       </div>
     </div>
   );
