@@ -10,6 +10,8 @@ import Results from "@/pages/Results";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import Practice from "@/pages/Practice";
+import Profile from "@/pages/Profile";
+import AuthCallback from "@/pages/AuthCallback";
 import { AnalysisProvider } from "@/context/AnalysisContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/practice" component={Practice} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/auth/callback" component={AuthCallback} />
       <Route component={NotFound} />
     </Switch>
   );

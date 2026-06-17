@@ -37,14 +37,18 @@ export default function Login() {
       setServerError(error);
       return;
     }
-    setLocation("/analyze");
+    setLocation("/");
   };
 
   const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/analyze` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
     });
+    if (error) setServerError(error.message);
   };
 
   return (

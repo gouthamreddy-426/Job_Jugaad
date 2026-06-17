@@ -4,9 +4,10 @@ import { useRef, useState, useEffect } from "react";
 import {
   ArrowRight, CheckCircle2, Zap, BarChart2, Target, BrainCircuit,
   Rocket, TrendingUp, FileText, Briefcase, ChevronRight, Star,
-  Moon, Sun, Trophy
+  Moon, Sun, Trophy, User
 } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 const TITLE = "Job Jugaad AI";
 const TAGLINE = "Bridge the gap, get the job.";
@@ -345,6 +346,7 @@ export default function Landing() {
   const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
   const { theme, toggle } = useTheme();
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-background dark:bg-background text-foreground overflow-x-hidden font-sans">
@@ -373,12 +375,20 @@ export default function Landing() {
           <button onClick={toggle} className="p-2 rounded-xl border border-border hover:bg-secondary dark:hover:bg-card transition-colors" aria-label="Toggle theme">
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-          <Link href="/login" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border-2 border-primary text-primary text-sm font-bold hover:bg-primary/5 transition-all">
-            Login
-          </Link>
-          <Link href="/signup" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
-            Sign Up
-          </Link>
+          {user ? (
+            <Link href="/profile" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
+              <User className="w-4 h-4" /> Profile
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border-2 border-primary text-primary text-sm font-bold hover:bg-primary/5 transition-all">
+                Login
+              </Link>
+              <Link href="/signup" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95">
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       </motion.nav>
 

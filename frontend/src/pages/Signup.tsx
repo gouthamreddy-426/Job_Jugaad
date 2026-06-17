@@ -46,14 +46,18 @@ export default function Signup() {
     setIsLoading(false);
     if (error) { setServerError(error); return; }
     setSuccess(true);
-    setTimeout(() => setLocation("/analyze"), 2000);
+    setTimeout(() => setLocation("/"), 2000);
   };
 
   const handleGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/analyze` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
     });
+    if (error) setServerError(error.message);
   };
 
   return (
