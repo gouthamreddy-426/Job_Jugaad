@@ -425,12 +425,12 @@ export default function Landing() {
             transition={{ duration: 0.5 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white dark:bg-card border border-primary/20 text-primary mb-8 shadow-sm"
           >
-            <motion.span
+            {/* <motion.span
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ duration: 1.5, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-primary inline-block"
             />
-            <span className="text-xs font-bold tracking-widest uppercase">Free — No sign-up needed</span>
+            <span className="text-xs font-bold tracking-widest uppercase">Free — No sign-up needed</span> */}
           </motion.div>
 
           <TitleReveal />

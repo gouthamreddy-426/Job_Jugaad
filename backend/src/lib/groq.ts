@@ -13,9 +13,15 @@ export async function callGroq(prompt: string, options: { maxTokens?: number; te
     },
     body: JSON.stringify({
       model: MODEL,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        {
+          role: "system",
+          content: "You are a strict ATS scoring engine. You produce fresh, document-specific analysis every time. You never repeat prior scores. You never produce round numbers unless they are genuinely correct. You always base scores on the actual keyword overlap between the provided resume and job description.",
+        },
+        { role: "user", content: prompt },
+      ],
       max_tokens: options.maxTokens ?? 4096,
-      temperature: options.temperature ?? 0.3,
+      temperature: options.temperature ?? 0.75,
     }),
   });
 

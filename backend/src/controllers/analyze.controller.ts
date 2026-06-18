@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { callGroq } from "../lib/groq.js";
-import { query } from "../lib/db.js";
+import { supabaseAdmin } from "../lib/supabase.js";
 import type { AnalysisResult } from "../types/index.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
@@ -22,46 +22,56 @@ export async function analyze(req: Request, res: Response): Promise<void> {
   const { resumeText, jobDescription, company, role } = parsed.data;
   const userId = (req as AuthRequest).userId ?? null;
 
-  const prompt = `You are a senior ATS (Applicant Tracking System) expert and career coach with 15+ years of experience. Analyze the resume against the job description below. Return ONLY valid JSON — absolutely no markdown, no code fences, no extra text.
+  const resumeWords = resumeText.trim().split(/\s+/).slice(0, 60).join(" ");
+  const jdWords = jobDescription.trim().split(/\s+/).slice(0, 40).join(" ");
+  const uniqueSeed = `[Analysis ID: ${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+
+  const prompt = `${uniqueSeed}
+You are a strict ATS auditor. You must score THIS SPECIFIC resume against THIS SPECIFIC job description with fresh eyes — do not reuse any previous scores, do not round to round numbers, do not default to generic values.
+
+RESUME FINGERPRINT (first 60 words): "${resumeWords}..."
+JD FINGERPRINT (first 40 words): "${jdWords}..."
+
+These fingerprints are for orientation only — analyze the FULL texts below.
+
+FULL RESUME:
+${resumeText.slice(0, 4500)}
+
+FULL JOB DESCRIPTION:
+${jobDescription.slice(0, 2500)}
+
+SCORING RULES — read carefully:
+- atsScore: Count exact keyword overlaps between the resume and JD. Be brutally honest. A resume missing 60% of required keywords cannot score above 50. Do NOT default to 70-75. Every score must be justified by actual content.
+- keywordMatchRate: Literally count technical keywords in the JD, then count how many appear verbatim in the resume. Divide and multiply by 100.
+- The score WILL differ significantly if the resume changes or the JD changes. If the result is the same as a prior run, re-examine — it is likely wrong.
 
 CRITICAL RULES FOR SKILLS:
-- "matchedSkills" and "missingSkills.name" must ONLY contain real professional skills: specific technologies (React, Python, Kubernetes), tools (Jira, Figma, Docker), frameworks (Django, Spring Boot), methodologies (Agile, Scrum, TDD), certifications (AWS Certified, PMP), or domain concepts (Machine Learning, REST API, CI/CD).
-- NEVER include: common English words, prepositions, articles, generic phrases, sentence fragments, or words like "Response", "Request", "to", "from", "the", "and", "with", "using", "experience", "skills", "ability", "knowledge", "understanding", "strong".
-- Each skill name must be a PROPER NOUN or TECHNICAL TERM, typically 1-4 words max (e.g., "TypeScript", "Spring Boot", "AWS Lambda", "System Design").
+- matchedSkills: ONLY skills that appear word-for-word in BOTH texts (e.g. "React", "Python", "Kubernetes"). No paraphrases.
+- missingSkills.name: ONLY real technical skills, tools, frameworks, methodologies, certifications, or domain concepts from the JD that are ABSENT from the resume.
+- NEVER include: common English words, prepositions, articles, generic phrases like "experience", "skills", "ability", "knowledge", "strong", "good", "great", "work", "team", "business".
+- Each skill name must be a proper noun or technical term, 1–4 words max.
 
-RESUME:
-${resumeText.slice(0, 4000)}
-
-JOB DESCRIPTION:
-${jobDescription.slice(0, 2000)}
-
-Return exactly this JSON structure:
+Return ONLY valid JSON — no markdown, no code fences, no extra text:
 {
-  "atsScore": <integer 0-100, honest ATS compatibility score>,
-  "keywordMatchRate": <integer 0-100, percentage of JD technical keywords found in resume>,
-  "matchedSkills": [
-    "<ONLY real tech/tool/framework names that appear in BOTH resume AND job description — max 12>"
-  ],
+  "atsScore": <integer 0-100, computed honestly from keyword overlap — NOT a guess>,
+  "keywordMatchRate": <integer 0-100, literal keyword count ratio>,
+  "matchedSkills": ["<skill appearing in BOTH resume AND JD — max 12>"],
   "missingSkills": [
     {
-      "name": "<real technical skill or tool name — NOT a generic phrase>",
+      "name": "<specific technical skill from JD absent in resume>",
       "importance": "<critical|high|medium|low>",
       "category": "<Technical|Soft Skills|Tools|Domain Knowledge|Certifications>",
       "tip": "<one actionable sentence on how to demonstrate this skill>"
     }
   ],
   "resumeStrengths": [
-    "<4-5 specific, concrete strengths visible in this resume — reference actual content>"
+    "<4-5 specific, concrete strengths citing actual resume content — NOT generic praise>"
   ],
   "improvementTips": [
     {
       "section": "<Work Experience|Skills|Summary|Education|Projects|Certifications>",
-      "toAdd": [
-        "<specific bullet or content to ADD — cite actual missing content from JD>"
-      ],
-      "toRemove": [
-        "<specific vague phrase or content to REMOVE/REWRITE from the resume>"
-      ]
+      "toAdd": ["<specific content to ADD — reference actual JD requirements missing from resume>"],
+      "toRemove": ["<specific vague phrase to REMOVE/REWRITE — must quote or paraphrase actual resume text>"]
     }
   ],
   "skillsToLearn": [
@@ -72,27 +82,45 @@ Return exactly this JSON structure:
       "reason": "<one sentence why this skill matters for this specific role>"
     }
   ],
-  "overallFeedback": "<2-3 sentence honest assessment of fit for this specific role>",
-  "industryBenchmark": <integer, typical ATS score for top candidates in this role>
+  "overallFeedback": "<2-3 sentence honest assessment of fit — reference specific resume vs JD gaps>",
+  "industryBenchmark": <integer, typical ATS score for top candidates in this industry/role>
 }
 
-Rules:
+Mandatory rules:
 - improvementTips must cover at least 3 sections (Work Experience, Skills, Summary minimum)
-- Every improvementTip section MUST have at least 1 item in both toAdd AND toRemove
-- missingSkills should have 4-10 items, all real technical skills
-- matchedSkills should have 4-12 items, all real technical skills found in the resume`;
+- Every improvementTips entry MUST have at least 1 item in both toAdd AND toRemove
+- missingSkills: 4–10 items, all real technical skills
+- matchedSkills: 4–12 items, only real technical skills found verbatim in both texts
+- overallFeedback MUST mention at least one specific gap or strength by name`;
 
   try {
-    const raw = await callGroq(prompt, { temperature: 0.2, maxTokens: 4096 });
+    const raw = await callGroq(prompt, { temperature: 0.75, maxTokens: 4096 });
 
-    let result: AnalysisResult;
+    let rawResult: Record<string, unknown>;
     try {
-      result = JSON.parse(raw) as AnalysisResult;
+      rawResult = JSON.parse(raw) as Record<string, unknown>;
     } catch {
       const match = raw.match(/\{[\s\S]*\}/);
       if (!match) throw new Error("AI returned invalid JSON. Please try again.");
-      result = JSON.parse(match[0]) as AnalysisResult;
+      rawResult = JSON.parse(match[0]) as Record<string, unknown>;
     }
+
+    const result: AnalysisResult = {
+      atsScore: (rawResult.atsScore ?? rawResult.ats_score ?? 50) as number,
+      keywordMatchRate: (rawResult.keywordMatchRate ?? rawResult.keyword_match_rate ?? 50) as number,
+      industryBenchmark: (rawResult.industryBenchmark ?? rawResult.industry_benchmark ?? 70) as number,
+      overallFeedback: (rawResult.overallFeedback ?? rawResult.overall_feedback ?? "Good start.") as string,
+      matchedSkills: Array.isArray(rawResult.matchedSkills) ? rawResult.matchedSkills as string[] :
+                     Array.isArray(rawResult.matched_skills) ? rawResult.matched_skills as string[] : [],
+      missingSkills: Array.isArray(rawResult.missingSkills) ? rawResult.missingSkills as AnalysisResult["missingSkills"] :
+                     Array.isArray(rawResult.missing_skills) ? rawResult.missing_skills as AnalysisResult["missingSkills"] : [],
+      resumeStrengths: Array.isArray(rawResult.resumeStrengths) ? rawResult.resumeStrengths as string[] :
+                       Array.isArray(rawResult.resume_strengths) ? rawResult.resume_strengths as string[] : [],
+      improvementTips: Array.isArray(rawResult.improvementTips) ? rawResult.improvementTips as AnalysisResult["improvementTips"] :
+                       Array.isArray(rawResult.improvement_tips) ? rawResult.improvement_tips as AnalysisResult["improvementTips"] : [],
+      skillsToLearn: Array.isArray(rawResult.skillsToLearn) ? rawResult.skillsToLearn as AnalysisResult["skillsToLearn"] :
+                     Array.isArray(rawResult.skills_to_learn) ? rawResult.skills_to_learn as AnalysisResult["skillsToLearn"] : [],
+    };
 
     if (!result.skillsToLearn) result.skillsToLearn = [];
     if (!result.matchedSkills) result.matchedSkills = [];
@@ -142,35 +170,46 @@ async function saveAnalysisToDB(
   result: AnalysisResult
 ): Promise<void> {
   const authReq = req as AuthRequest;
+  const email = authReq.userEmail ?? "";
+  const name = email.split("@")[0] ?? "User";
 
-  await query(
-    `INSERT INTO users (id, email, name)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (id) DO UPDATE SET
-       email = EXCLUDED.email,
-       name = COALESCE(users.name, EXCLUDED.name)`,
-    [userId, authReq.userEmail ?? "", authReq.userEmail?.split("@")[0] ?? "User"]
-  );
+  const { error: userErr } = await supabaseAdmin
+    .from("users")
+    .upsert({ id: userId, email, name }, { onConflict: "id", ignoreDuplicates: false });
+  if (userErr) throw new Error(`[DB] Upsert user failed: ${userErr.message}`);
 
-  const [resumeRow] = await query<{ id: string }>(
-    `INSERT INTO resumes (user_id, parsed_content)
-     VALUES ($1, $2::jsonb)
-     RETURNING id`,
-    [userId, JSON.stringify({ text: resumeText.slice(0, 8000), wordCount: resumeText.split(/\s+/).length })]
-  );
+  const { data: resumeRow, error: resumeErr } = await supabaseAdmin
+    .from("resumes")
+    .insert({
+      user_id: userId,
+      parsed_content: { text: resumeText.slice(0, 8000), wordCount: resumeText.split(/\s+/).length },
+    })
+    .select("id")
+    .single();
+  if (resumeErr) throw new Error(`[DB] Insert resume failed: ${resumeErr.message}`);
 
-  const [jdRow] = await query<{ id: string }>(
-    `INSERT INTO job_descriptions (user_id, company, role, parsed_requirements)
-     VALUES ($1, $2, $3, $4::jsonb)
-     RETURNING id`,
-    [userId, company || "", role || "", JSON.stringify({ text: jobDescription.slice(0, 4000) })]
-  );
+  const { data: jdRow, error: jdErr } = await supabaseAdmin
+    .from("job_descriptions")
+    .insert({
+      user_id: userId,
+      company: company || "",
+      role: role || "",
+      parsed_requirements: { text: jobDescription.slice(0, 4000) },
+    })
+    .select("id")
+    .single();
+  if (jdErr) throw new Error(`[DB] Insert job_description failed: ${jdErr.message}`);
 
-  await query(
-    `INSERT INTO analyses (user_id, resume_id, jd_id, overall_match_score, ai_report)
-     VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [userId, resumeRow.id, jdRow.id, result.atsScore, JSON.stringify(result)]
-  );
+  const { error: analysisErr } = await supabaseAdmin
+    .from("analyses")
+    .insert({
+      user_id: userId,
+      resume_id: resumeRow.id,
+      jd_id: jdRow.id,
+      overall_match_score: result.atsScore,
+      ai_report: result,
+    });
+  if (analysisErr) throw new Error(`[DB] Insert analysis failed: ${analysisErr.message}`);
 
   console.log(`[DB] Analysis saved for user ${userId} — ATS: ${result.atsScore}`);
 }
