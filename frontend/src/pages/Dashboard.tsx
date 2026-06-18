@@ -7,7 +7,7 @@ import { getUserAnalyses } from "@/services/api";
 import {
   Zap, ArrowLeft, BarChart2, Target, TrendingUp, FileText,
   Clock, ChevronDown, ChevronUp, AlertCircle, Sparkles,
-  Trophy, Brain, Rocket, RefreshCw, Star, Plus, Moon, Sun, LogIn
+  Trophy, Brain, Rocket, RefreshCw, Star, Plus, Moon, Sun
 } from "lucide-react";
 
 interface AnalysisRecord {
@@ -76,6 +76,128 @@ function ScoreRing({ score, size = 84, stroke = 7, color, label }: {
   );
 }
 
+function ScoreTrajectoryChart({ analyses }: { analyses: AnalysisRecord[] }) {
+  const [drawn, setDrawn] = useState(false);
+  const ref = useRef<SVGPathElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const sorted = [...analyses].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  const W = 600;
+  const H = 160;
+  const PX = 48;
+  const PY = 20;
+  const chartW = W - PX * 2;
+  const chartH = H - PY * 2;
+
+  const minScore = Math.max(0, Math.min(...sorted.map(a => a.atsScore)) - 10);
+  const maxScore = Math.min(100, Math.max(...sorted.map(a => a.atsScore)) + 10);
+  const range = maxScore - minScore || 1;
+
+  const points = sorted.map((a, i) => ({
+    x: PX + (sorted.length === 1 ? chartW / 2 : (i / (sorted.length - 1)) * chartW),
+    y: PY + chartH - ((a.atsScore - minScore) / range) * chartH,
+    score: a.atsScore,
+    label: a.role || "Scan",
+    date: new Date(a.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+  }));
+
+  const pathD = points.length === 1
+    ? `M ${points[0].x} ${points[0].y}`
+    : points.reduce((acc, p, i) => {
+        if (i === 0) return `M ${p.x} ${p.y}`;
+        const prev = points[i - 1];
+        const cpx = (prev.x + p.x) / 2;
+        return acc + ` C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`;
+      }, "");
+
+  const areaD = pathD + ` L ${points[points.length - 1].x} ${PY + chartH} L ${points[0].x} ${PY + chartH} Z`;
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setDrawn(true); }, { threshold: 0.3 });
+    if (containerRef.current) obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (drawn && ref.current) {
+      const len = ref.current.getTotalLength();
+      ref.current.style.strokeDasharray = `${len}`;
+      ref.current.style.strokeDashoffset = `${len}`;
+      requestAnimationFrame(() => {
+        if (ref.current) {
+          ref.current.style.transition = "stroke-dashoffset 1.4s cubic-bezier(0.22,1,0.36,1)";
+          ref.current.style.strokeDashoffset = "0";
+        }
+      });
+    }
+  }, [drawn]);
+
+  const trend = sorted.length >= 2 ? sorted[sorted.length - 1].atsScore - sorted[0].atsScore : 0;
+
+  return (
+    <div ref={containerRef} className="bg-white dark:bg-card border border-border rounded-3xl p-6 mb-8">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-base font-black flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" /> ATS Score Trajectory
+          </h2>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">Your score progress over {sorted.length} scan{sorted.length !== 1 ? "s" : ""}</p>
+        </div>
+        {trend !== 0 && (
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black border ${
+            trend > 0
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800"
+              : "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+          }`}>
+            {trend > 0 ? "▲" : "▼"} {Math.abs(trend)}pts since first scan
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[300px]" style={{ height: H }}>
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {/* Y-axis grid lines */}
+          {[0, 25, 50, 75, 100].map(v => {
+            const y = PY + chartH - ((Math.max(v, minScore) - minScore) / range) * chartH;
+            if (v < minScore || v > maxScore) return null;
+            return (
+              <g key={v}>
+                <line x1={PX} x2={W - PX} y1={y} y2={y} stroke="currentColor" strokeOpacity={0.06} strokeWidth={1} className="text-foreground" />
+                <text x={PX - 6} y={y + 4} textAnchor="end" fontSize={10} fill="currentColor" opacity={0.4} className="text-foreground font-mono">{v}</text>
+              </g>
+            );
+          })}
+
+          {/* Area fill */}
+          {drawn && points.length > 0 && (
+            <motion.path d={areaD} fill="url(#areaGrad)" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6, duration: 0.6 }} />
+          )}
+
+          {/* Line */}
+          <path ref={ref} d={pathD} fill="none" stroke="hsl(var(--primary))" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Data points */}
+          {drawn && points.map((p, i) => (
+            <motion.g key={i} initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.8 + i * 0.1 }}>
+              <circle cx={p.x} cy={p.y} r={5} fill="hsl(var(--primary))" stroke="white" strokeWidth={2.5} />
+              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize={10} fontWeight={700} fill="hsl(var(--primary))" className="font-mono">{p.score}%</text>
+              <text x={p.x} y={PY + chartH + 14} textAnchor="middle" fontSize={9} fill="currentColor" opacity={0.5} className="text-foreground">{p.date}</text>
+            </motion.g>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function timeAgo(iso: string) {
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
   if (d < 3600) return `${Math.floor(d / 60)}m ago`;
@@ -104,12 +226,10 @@ export default function Dashboard() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!loading && !user) setLocation("/login");
   }, [user, loading, setLocation]);
 
-  // Fetch real data from backend
   useEffect(() => {
     if (!user) return;
     setFetching(true);
@@ -144,13 +264,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      {/* Background accent */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-accent/5 rounded-full blur-[100px]" />
       </div>
 
-      {/* Nav */}
       <nav className="relative z-10 border-b border-border bg-background/80 backdrop-blur-md sticky top-0">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium group">
@@ -177,7 +295,6 @@ export default function Dashboard() {
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 py-10">
 
-        {/* Page header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-widest mb-4">
             <Sparkles className="w-3 h-3" /> Your Dashboard
@@ -194,15 +311,15 @@ export default function Dashboard() {
 
         {/* Stats row */}
         {analyses.length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[
               { icon: <BarChart2 className="w-5 h-5" />, label: "Avg ATS Score", val: `${avg}%`, sub: "across all scans", color: "primary" },
               { icon: <Trophy className="w-5 h-5" />, label: "Best Score", val: `${best}%`, sub: "personal record", color: "accent" },
-              { icon: <Target className="w-5 h-5" />, label: "Avg Keyword Match", val: `${kwAvg}%`, sub: "keyword coverage", color: "emerald" },
+              { icon: <Target className="w-5 h-5" />, label: "Avg Keywords", val: `${kwAvg}%`, sub: "keyword coverage", color: "emerald" },
               { icon: <Brain className="w-5 h-5" />, label: "Total Scans", val: String(analyses.length), sub: "analyses done", color: "violet" },
             ].map((s, i) => (
               <motion.div key={i} custom={i} variants={cardVariants} initial="hidden" animate="visible"
-                className={`group rounded-2xl p-5 border border-border bg-white dark:bg-card hover:shadow-md transition-all cursor-default`}>
+                className="group rounded-2xl p-5 border border-border bg-white dark:bg-card hover:shadow-md transition-all cursor-default">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
                   s.color === "primary" ? "bg-primary/10 text-primary" :
                   s.color === "accent" ? "bg-accent/10 text-accent" :
@@ -217,7 +334,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Error state */}
+        {/* Score Trajectory Chart — only when 2+ analyses */}
+        {!fetching && analyses.length >= 2 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }}>
+            <ScoreTrajectoryChart analyses={analyses} />
+          </motion.div>
+        )}
+
+        {/* Error */}
         {fetchError && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="mb-6 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3 text-red-600 dark:text-red-400">
@@ -229,7 +353,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Loading state */}
+        {/* Loading */}
         {fetching && (
           <div className="flex flex-col items-center py-24 gap-4">
             <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -237,7 +361,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty */}
         {!fetching && !fetchError && analyses.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             className="text-center py-24">
@@ -255,7 +379,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Analysis history */}
+        {/* History */}
         {!fetching && analyses.length > 0 && (
           <>
             <div className="flex items-center justify-between mb-5">
@@ -274,37 +398,25 @@ export default function Dashboard() {
                     whileHover={{ y: -2 }}
                     className="rounded-2xl border border-border bg-white dark:bg-card overflow-hidden shadow-sm hover:shadow-md transition-all">
 
-                    {/* Card header */}
                     <button
                       className="w-full flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 text-left"
-                      onClick={() => setExpanded(isOpen ? null : a.id)}
-                    >
+                      onClick={() => setExpanded(isOpen ? null : a.id)}>
                       <div className="shrink-0">
                         <ScoreRing score={a.atsScore} color={meta.color} label="ATS" />
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-base font-black text-foreground">
-                            {a.role || "Resume Scan"}
-                          </span>
+                          <span className="text-base font-black text-foreground">{a.role || "Resume Scan"}</span>
                           {a.company && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-semibold">
-                              {a.company}
-                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-semibold">{a.company}</span>
                           )}
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta.cls}`}>
-                            {meta.label}
-                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta.cls}`}>{meta.label}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground font-medium line-clamp-1 mb-2">
-                          {a.overallFeedback}
-                        </p>
+                        <p className="text-sm text-muted-foreground font-medium line-clamp-1 mb-2">{a.overallFeedback}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {a.matchedSkills?.slice(0, 5).map((sk) => (
-                            <span key={sk} className="text-[11px] px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold">
-                              {sk}
-                            </span>
+                            <span key={sk} className="text-[11px] px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold">{sk}</span>
                           ))}
                           {(a.matchedSkills?.length ?? 0) > 5 && (
                             <span className="text-[11px] px-2 py-0.5 rounded-md bg-secondary text-muted-foreground border border-border font-semibold">
@@ -322,25 +434,19 @@ export default function Dashboard() {
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="w-3 h-3" />{timeAgo(a.createdAt)}
                         </span>
-                        {isOpen
-                          ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                          : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                        {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                       </div>
                     </button>
 
-                    {/* Expanded detail */}
                     <AnimatePresence initial={false}>
                       {isOpen && (
-                        <motion.div
-                          key="detail"
+                        <motion.div key="detail"
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                          className="overflow-hidden"
-                        >
+                          className="overflow-hidden">
                           <div className="border-t border-border px-5 pb-5 pt-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
-                            {/* Strengths */}
                             <div>
                               <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
                                 <Star className="w-3 h-3" /> Strengths
@@ -355,7 +461,6 @@ export default function Dashboard() {
                               </ul>
                             </div>
 
-                            {/* Skill gaps */}
                             <div>
                               <h4 className="text-xs font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-1.5">
                                 <AlertCircle className="w-3 h-3" /> Skill Gaps
@@ -374,7 +479,6 @@ export default function Dashboard() {
                               </ul>
                             </div>
 
-                            {/* Benchmark + actions */}
                             <div>
                               <h4 className="text-xs font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-1.5">
                                 <TrendingUp className="w-3 h-3" /> vs Benchmark

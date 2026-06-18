@@ -23,40 +23,38 @@ export async function generatePractice(req: Request, res: Response): Promise<voi
 
   const missingStr = missingSkills.slice(0, 10).join(", ") || "General software engineering skills";
   const matchedStr = matchedSkills.slice(0, 12).join(", ") || "None specified";
-  const companyLabel = company ? `at ${company}` : "";
+  const companyCtx = company ? `at a company like ${company}` : "at a top tech company";
 
-  const prompt = `You are a SENIOR TECHNICAL INTERVIEWER ${companyLabel ? `at a company like ${company}` : "at a top tech company"}. Your job is to create a RIGOROUS interview practice plan that specifically targets:
+  const prompt = `You are a SENIOR TECHNICAL INTERVIEW COACH ${companyCtx}. Create a friendly, encouraging practice plan that helps the candidate prepare confidently for this specific role.
 
-1. (60% of questions) JOB DESCRIPTION requirements — what THIS specific job ACTUALLY demands. For skills the candidate CLAIMS to have but the JD heavily requires, generate DEEP VERIFICATION questions because candidates often fake projects. These questions must be expert-level, probing, and impossible to bluff through without real experience.
-
-2. (40% of questions) Skills genuinely MISSING from the candidate's resume — questions to help them learn and fill real gaps.
-
-CRITICAL ANTI-FAKE-PROJECT RULE: If a skill appears in BOTH "Candidate's Claimed Skills" AND the JD requires it heavily, mark it source="jd-verification" and set probeDepth="expert" or "deep". The verification questions must probe REAL hands-on experience — ask about specific failure modes, edge cases, performance tradeoffs, debugging war stories, and implementation decisions that only someone who actually used the skill would know.
+The plan has two focus areas:
+1. (60% of questions) What the JD ACTUALLY needs — specifically the skills this job demands most. If a skill is in both the candidate's resume and the JD, the interviewer will go deep on it, so include thorough practice questions so the candidate is fully prepared and confident.
+2. (40% of questions) Skills the candidate is genuinely missing — learning-focused questions to help them grow.
 
 JOB TITLE: ${jobTitle}
 ${company ? `COMPANY: ${company}` : ""}
 JOB DESCRIPTION: ${jobDescription.slice(0, 2000)}
 
-CANDIDATE'S CLAIMED SKILLS (from resume — verify these if JD requires them heavily):
+CANDIDATE'S CURRENT SKILLS (from resume):
 ${matchedStr}
 
-SKILLS MISSING FROM RESUME (genuine gaps — help them learn):
+SKILLS NOT YET ON RESUME:
 ${missingStr}
 
-COACH ASSESSMENT: ${overallFeedback.slice(0, 400)}
+COACH NOTES: ${overallFeedback.slice(0, 400)}
 
 Return ONLY valid raw JSON (no markdown fences):
 {
   "questions": [
     {
       "type": "dsa|system-design|behavioral|technical",
-      "title": "<specific, direct question title>",
+      "title": "<specific, direct question>",
       "difficulty": "Easy|Medium|Hard",
-      "category": "<specific skill or concept being tested>",
-      "description": "<2-3 sentences — for jd-verification questions: probe real hands-on experience, ask about edge cases, failures, decisions, tradeoffs. For resume-gap questions: help them understand what to learn and why>",
-      "hint": "<practical hint — for verification: a clue about what depth of answer is expected. For gaps: a learning direction>",
-      "followUps": ["<probing follow-up 1>", "<probing follow-up 2>"],
-      "skillTarget": "<exact skill name being tested>",
+      "category": "<skill or concept being practiced>",
+      "description": "<2-3 sentences — for JD-priority questions: cover what the JD expects and how to demonstrate real-world experience with this skill; for gap questions: explain what to learn and why it matters for this role>",
+      "hint": "<practical, encouraging hint on how to approach this>",
+      "followUps": ["<natural follow-up 1>", "<natural follow-up 2>"],
+      "skillTarget": "<exact skill name>",
       "source": "jd-verification|jd-requirement|resume-gap",
       "probeDepth": "surface|deep|expert"
     }
@@ -66,31 +64,25 @@ Return ONLY valid raw JSON (no markdown fences):
       "query": "<specific YouTube search query>",
       "topic": "<skill topic>",
       "channel": "<recommended channel>",
-      "description": "<one sentence — why this video helps for THIS specific job>"
+      "description": "<one sentence — why this resource helps for THIS specific job>"
     }
   ],
-  "studyPlan": "<3-4 sentence personalized study plan — mention specific skills, timeframes, and the 60/40 JD-vs-gap approach>",
+  "studyPlan": "<3-4 sentence personalized, encouraging study plan — mention specific skills, realistic timeframes, and the JD-first approach>",
   "jdWeight": 60,
   "gapWeight": 40,
   "verificationCount": <integer — count of jd-verification questions>,
-  "disclaimer": "Questions marked 'JD Critical — Verify' test skills you listed on your resume that this job highly values. Be prepared to discuss real implementation details, failure modes, and tradeoffs — not just surface-level knowledge."
+  "disclaimer": "Questions marked 'JD Expects This' highlight skills the JD considers critical — give them extra prep time. The more you practice these, the more confident you'll feel in the interview."
 }
 
 QUESTION GENERATION RULES:
 - Total: 11-13 questions
-- ~7 questions from JD (source: "jd-verification" or "jd-requirement") — these are the 60%
-  * "jd-verification": skill is in candidate's resume AND heavily required in JD — mark probeDepth="expert" or "deep", Hard/Medium difficulty, ask about real experiences
-  * "jd-requirement": skill is in JD but NOT in candidate's resume — mark probeDepth="surface" or "deep"
-- ~5 questions from resume gaps (source: "resume-gap") — these are the 40%, can be Medium/Easy, learning-focused
-- Always include: 1 DSA (targeted to JD requirements), 2 system-design (role-specific), 2 behavioral (with situational probing), rest are technical
-- YouTube resources: 5-6, skewed toward JD-required skills and verification topics
-
-VERIFICATION QUESTION STYLE (for jd-verification):
-- Don't ask "what is X" — ask "Tell me about a time your X implementation caused a production issue and how you debugged it"
-- "What tradeoffs did you make when choosing X over Y in your project?"
-- "Walk me through the worst bug you've hit with X and how you resolved it"
-- "If your X setup was handling 10x traffic, what would break first?"
-These are designed to expose fake projects. Someone who only did a tutorial won't be able to answer these.`;
+- ~7 questions from JD focus (source: "jd-verification" or "jd-requirement") — the 60%
+  * "jd-verification": skill is on resume AND heavily required in JD — probeDepth="expert" or "deep", go in-depth, ask about real-world application and tradeoffs
+  * "jd-requirement": skill needed by JD but not on resume — probeDepth="surface" or "deep", learning-focused
+- ~5 questions from skill gaps (source: "resume-gap") — the 40%, can be Medium/Easy, encourage growth
+- Mix: 1 DSA, 2 system-design, 2 behavioral, rest technical
+- YouTube resources: 5-6, focused on JD-required and priority skills
+- Tone: supportive, practical, confidence-building — not intimidating`;
 
   try {
     const raw = await callGroq(prompt, { temperature: 0.35, maxTokens: 4096 });
@@ -109,7 +101,7 @@ These are designed to expose fake projects. Someone who only did a tutorial won'
     if (!result.studyPlan) result.studyPlan = "";
     if (!result.jdWeight) result.jdWeight = 60;
     if (!result.gapWeight) result.gapWeight = 40;
-    if (!result.disclaimer) result.disclaimer = "Questions test both your claimed skills and genuine gaps.";
+    if (!result.disclaimer) result.disclaimer = "Questions marked 'JD Expects This' are the ones the interviewer will likely focus on most — give them extra prep time.";
 
     result.verificationCount = result.questions.filter(q => q.source === "jd-verification").length;
 

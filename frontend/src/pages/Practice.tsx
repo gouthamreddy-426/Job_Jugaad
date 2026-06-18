@@ -9,7 +9,7 @@ import {
   ArrowLeft, Brain, Youtube, Code2, Server, Users, Zap, ChevronDown,
   ChevronUp, CheckCircle2, Loader2, BookOpen, Trophy, Filter, ExternalLink,
   Lightbulb, Play, Search, Moon, Sun, Download, AlertCircle,
-  ShieldAlert, Target, Sparkles, BarChart2
+  Target, Sparkles, BarChart2, Info
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -25,9 +25,7 @@ function downloadPDF(practiceData: PracticeData, role: string, company: string) 
   let y = 20;
 
   const addText = (text: string, size: number, style: "normal" | "bold" = "normal", color: [number, number, number] = [30, 30, 30]) => {
-    doc.setFontSize(size);
-    doc.setFont("helvetica", style);
-    doc.setTextColor(...color);
+    doc.setFontSize(size); doc.setFont("helvetica", style); doc.setTextColor(...color);
     const lines = doc.splitTextToSize(text, maxWidth);
     if (y + lines.length * (size * 0.4 + 2) > 275) { doc.addPage(); y = 20; }
     doc.text(lines, margin, y);
@@ -38,14 +36,8 @@ function downloadPDF(practiceData: PracticeData, role: string, company: string) 
 
   addText("Job Jugaad AI — JD-Targeted Practice Plan", 18, "bold", [79, 70, 229]);
   addText(`${role ? role + (company ? " at " + company : "") : "Role"} • Generated: ${new Date().toLocaleDateString()}`, 10, "normal", [120, 120, 120]);
-  addText(`60% JD Requirements | 40% Resume Gaps | ${practiceData.verificationCount} Verification Questions`, 10, "bold", [239, 68, 68]);
+  addText(`60% JD Requirements | 40% Resume Gaps`, 10, "bold", [79, 70, 229]);
   addSpacer(4); addLine();
-
-  if (practiceData.disclaimer) {
-    addText("⚠ Important", 12, "bold", [239, 68, 68]);
-    addText(practiceData.disclaimer, 10, "normal", [100, 60, 60]);
-    addSpacer(6); addLine();
-  }
 
   if (practiceData.studyPlan) {
     addText("Study Plan", 13, "bold", [79, 70, 229]);
@@ -54,9 +46,9 @@ function downloadPDF(practiceData: PracticeData, role: string, company: string) 
 
   const sourceOrder = ["jd-verification", "jd-requirement", "resume-gap"] as const;
   const sourceLabels = {
-    "jd-verification": "JD Critical — Verify (60%)",
-    "jd-requirement": "JD Required — Learn (60%)",
-    "resume-gap": "Resume Gaps — Develop (40%)",
+    "jd-verification": "JD Expects This — Priority Skills (60%)",
+    "jd-requirement": "JD Required — Learn These (60%)",
+    "resume-gap": "Skill Gaps — Develop These (40%)",
   };
 
   for (const src of sourceOrder) {
@@ -66,7 +58,7 @@ function downloadPDF(practiceData: PracticeData, role: string, company: string) 
     addLine();
     qs.forEach((q, i) => {
       addText(`${i + 1}. ${q.title} (${q.difficulty}) — ${q.category}`, 11, "bold");
-      if (q.source === "jd-verification") addText(`★ VERIFICATION — Target: ${q.skillTarget} | Depth: ${q.probeDepth}`, 9, "bold", [239, 68, 68]);
+      if (q.skillTarget) addText(`Skill: ${q.skillTarget}`, 9, "normal", [100, 100, 100]);
       addSpacer(2); addText(q.description, 10); addSpacer(2);
       addText(`Hint: ${q.hint}`, 10, "normal", [100, 100, 100]);
       if (q.followUps.length > 0) {
@@ -85,19 +77,19 @@ function downloadPDF(practiceData: PracticeData, role: string, company: string) 
       addText(r.description, 10); addText(`Search: "${r.query}"`, 10, "normal", [100, 100, 100]); addSpacer(4);
     });
   }
-  doc.save("jobjugaad-jd-practice-plan.pdf");
+  doc.save("jobjugaad-practice-plan.pdf");
 }
 
 const SOURCE_META = {
   "jd-verification": {
-    label: "JD Critical — Verify",
-    shortLabel: "Verify",
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-400",
-    border: "border-red-300 dark:border-red-800",
-    leftBorder: "border-l-red-500",
-    icon: <ShieldAlert className="w-3 h-3" />,
-    tip: "This tests a skill you listed on your resume that this JD heavily requires. Be ready for deep, experience-level probing.",
+    label: "JD Expects This",
+    shortLabel: "JD Priority",
+    bg: "bg-violet-100 dark:bg-violet-900/30",
+    text: "text-violet-700 dark:text-violet-400",
+    border: "border-violet-300 dark:border-violet-800",
+    leftBorder: "border-l-violet-500",
+    icon: <Target className="w-3 h-3" />,
+    tip: "The JD heavily values this skill. It's worth brushing up — interviewers will likely go deep on this.",
   },
   "jd-requirement": {
     label: "JD Required",
@@ -106,25 +98,25 @@ const SOURCE_META = {
     text: "text-orange-700 dark:text-orange-400",
     border: "border-orange-300 dark:border-orange-800",
     leftBorder: "border-l-orange-500",
-    icon: <Target className="w-3 h-3" />,
-    tip: "This skill is required by the JD. Study it before the interview.",
+    icon: <Zap className="w-3 h-3" />,
+    tip: "This skill shows up in the JD. Getting familiar with it before your interview will make a real difference.",
   },
   "resume-gap": {
-    label: "Resume Gap",
+    label: "Skill to Build",
     shortLabel: "Gap",
     bg: "bg-blue-100 dark:bg-blue-900/30",
     text: "text-blue-700 dark:text-blue-400",
     border: "border-blue-300 dark:border-blue-800",
     leftBorder: "border-l-blue-500",
     icon: <Brain className="w-3 h-3" />,
-    tip: "This skill is missing from your resume. Learn it to strengthen your candidacy.",
+    tip: "This skill isn't on your resume yet. Adding it to your toolkit would strengthen your profile for this role.",
   },
 };
 
 const DEPTH_META = {
-  expert: { label: "Expert Depth", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-  deep: { label: "Deep Dive", cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-  surface: { label: "Conceptual", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  expert: { label: "Go Deep", cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
+  deep: { label: "Know It Well", cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  surface: { label: "Basics", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
 };
 
 export default function Practice() {
@@ -189,9 +181,10 @@ export default function Practice() {
     return true;
   });
 
-  const verifyCount = practiceData?.questions.filter(q => q.source === "jd-verification").length ?? 0;
+  const jdPriorityCount = practiceData?.questions.filter(q => q.source === "jd-verification").length ?? 0;
   const jdCount = practiceData?.questions.filter(q => q.source === "jd-requirement").length ?? 0;
   const gapCount = practiceData?.questions.filter(q => q.source === "resume-gap").length ?? 0;
+  const totalCount = practiceData?.questions.length ?? 0;
 
   const tabOptions: { id: QuestionType | "all"; label: string; icon: React.ReactNode }[] = [
     { id: "all", label: "All", icon: <Filter className="w-4 h-4" /> },
@@ -202,10 +195,10 @@ export default function Practice() {
   ];
 
   const sourceFilterOptions: { id: SourceFilter; label: string; count: number; cls: string }[] = [
-    { id: "all", label: "All Sources", count: practiceData?.questions.length ?? 0, cls: "bg-foreground text-background" },
-    { id: "jd-verification", label: "Verify (JD)", count: verifyCount, cls: "bg-red-500 text-white" },
+    { id: "all", label: "All Questions", count: totalCount, cls: "bg-foreground text-background" },
+    { id: "jd-verification", label: "JD Expects This", count: jdPriorityCount, cls: "bg-violet-500 text-white" },
     { id: "jd-requirement", label: "JD Required", count: jdCount, cls: "bg-orange-500 text-white" },
-    { id: "resume-gap", label: "Resume Gap", count: gapCount, cls: "bg-blue-500 text-white" },
+    { id: "resume-gap", label: "Skills to Build", count: gapCount, cls: "bg-blue-500 text-white" },
   ];
 
   return (
@@ -245,7 +238,7 @@ export default function Practice() {
 
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
 
-        {/* Hero section */}
+        {/* Hero */}
         <section className="rounded-3xl bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 text-white p-8 md:p-10 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-[80px] pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/20 rounded-full blur-[80px] pointer-events-none" />
@@ -261,48 +254,40 @@ export default function Practice() {
                   {role && <span className="text-sm px-2.5 py-1 rounded-full bg-white/10 border border-white/20 font-bold">{role}{company ? ` @ ${company}` : ""}</span>}
                 </div>
 
-                {/* 60/40 breakdown */}
-                <div className="flex items-center gap-3 mb-4 mt-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
-                    <div className="w-3 h-3 rounded bg-red-400" />
+                {/* 60/40 legend */}
+                <div className="flex items-center gap-4 mb-4 mt-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold opacity-90">
+                    <div className="w-3 h-3 rounded bg-violet-400" />
                     <span>60% JD-driven</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                  <div className="flex items-center gap-1.5 text-xs font-bold opacity-90">
                     <div className="w-3 h-3 rounded bg-blue-400" />
-                    <span>40% Gap-driven</span>
+                    <span>40% Skill gaps</span>
                   </div>
-                  {practiceData && (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-red-300">
-                      <ShieldAlert className="w-3 h-3" />
-                      <span>{verifyCount} fake-project detection questions</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Progress bar showing JD vs Gap split */}
+                {/* Progress bar */}
                 {practiceData && (
                   <div className="mb-4">
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-red-400" style={{ width: `${(verifyCount / practiceData.questions.length) * 100}%` }} />
-                      <div className="h-full bg-orange-400" style={{ width: `${(jdCount / practiceData.questions.length) * 100}%` }} />
-                      <div className="h-full bg-blue-400" style={{ width: `${(gapCount / practiceData.questions.length) * 100}%` }} />
+                      <div className="h-full bg-violet-400" style={{ width: `${(jdPriorityCount / totalCount) * 100}%` }} />
+                      <div className="h-full bg-orange-400" style={{ width: `${(jdCount / totalCount) * 100}%` }} />
+                      <div className="h-full bg-blue-400" style={{ width: `${(gapCount / totalCount) * 100}%` }} />
                     </div>
                     <div className="flex gap-4 mt-1.5 text-[10px] text-white/60 font-medium">
-                      <span className="text-red-300">■ Verify ({verifyCount})</span>
+                      <span className="text-violet-300">■ JD Expects ({jdPriorityCount})</span>
                       <span className="text-orange-300">■ JD Required ({jdCount})</span>
-                      <span className="text-blue-300">■ Gap ({gapCount})</span>
+                      <span className="text-blue-300">■ Gaps ({gapCount})</span>
                     </div>
                   </div>
                 )}
 
+                {/* Counts */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {practiceData && (
                     <>
                       <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/20 text-sm font-bold flex items-center gap-1.5">
-                        <BookOpen className="w-4 h-4 text-blue-300" /> {practiceData.questions.length} Questions
-                      </span>
-                      <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/20 text-sm font-bold flex items-center gap-1.5">
-                        <ShieldAlert className="w-4 h-4 text-red-300" /> {verifyCount} Verifications
+                        <BookOpen className="w-4 h-4 text-blue-300" /> {totalCount} Questions
                       </span>
                       <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/20 text-sm font-bold flex items-center gap-1.5">
                         <Youtube className="w-4 h-4 text-red-400" /> {practiceData.youtubeResources.length} Resources
@@ -329,33 +314,19 @@ export default function Practice() {
             <button onClick={handleGenerate} disabled={isLoading}
               className="shrink-0 px-6 py-3 bg-white text-indigo-950 hover:bg-indigo-50 font-extrabold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-70 whitespace-nowrap">
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 text-indigo-600" />}
-              {isLoading ? "Generating..." : practiceData ? "Regenerate" : "Generate Plan"}
+              {isLoading ? "Generating…" : practiceData ? "Regenerate" : "Generate Plan"}
             </button>
           </div>
         </section>
 
-        {/* Disclaimer banner */}
-        {practiceData && verifyCount > 0 && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
-            <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold text-red-700 dark:text-red-400">Anti-Fake-Project Verification Active</p>
-              <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5 font-medium">
-                {practiceData.disclaimer}
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Loading state */}
+        {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
-            <p className="text-lg font-bold">Generating JD-targeted practice plan…</p>
-            <p className="text-sm text-muted-foreground">Analyzing JD requirements & resume claims</p>
+            <p className="text-lg font-bold">Crafting your practice plan…</p>
+            <p className="text-sm text-muted-foreground">Matching JD requirements to your profile</p>
           </div>
         )}
 
@@ -365,7 +336,7 @@ export default function Practice() {
               <Brain className="w-8 h-8 text-muted-foreground" />
             </div>
             <p className="text-lg font-bold">No practice plan yet</p>
-            <p className="text-sm text-muted-foreground">Click "Generate Plan" to create your JD-targeted practice</p>
+            <p className="text-sm text-muted-foreground">Click "Generate Plan" to get started</p>
           </div>
         )}
 
@@ -374,10 +345,10 @@ export default function Practice() {
             {/* Stats row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { icon: <ShieldAlert className="w-5 h-5 text-red-500" />, val: verifyCount, label: "Verify Questions", sub: "JD-claim verification", bg: "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900" },
-                { icon: <Target className="w-5 h-5 text-orange-500" />, val: jdCount, label: "JD Required", sub: "Must-know for role", bg: "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900" },
-                { icon: <Brain className="w-5 h-5 text-blue-500" />, val: gapCount, label: "Gap Questions", sub: "Skills to develop", bg: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900" },
-                { icon: <BarChart2 className="w-5 h-5 text-primary" />, val: practiceData.questions.length, label: "Total Questions", sub: "Full practice set", bg: "bg-primary/5 border-primary/20" },
+                { icon: <Target className="w-5 h-5 text-violet-500" />, val: jdPriorityCount, label: "JD Expects This", sub: "High-priority skills", bg: "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900" },
+                { icon: <Zap className="w-5 h-5 text-orange-500" />, val: jdCount, label: "JD Required", sub: "Learn before interview", bg: "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900" },
+                { icon: <Brain className="w-5 h-5 text-blue-500" />, val: gapCount, label: "Skills to Build", sub: "Strengthen your profile", bg: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900" },
+                { icon: <BarChart2 className="w-5 h-5 text-primary" />, val: totalCount, label: "Total Questions", sub: "Full practice set", bg: "bg-primary/5 border-primary/20" },
               ].map((s, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
                   className={`rounded-2xl border p-4 ${s.bg}`}>
@@ -400,12 +371,13 @@ export default function Practice() {
                         ? `${opt.cls} border-transparent shadow-md`
                         : "bg-white dark:bg-card border-border text-muted-foreground hover:border-primary/40"
                     }`}>
-                    {opt.label} <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${sourceFilter === opt.id ? "bg-white/20" : "bg-secondary"}`}>{opt.count}</span>
+                    {opt.label}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${sourceFilter === opt.id ? "bg-white/20" : "bg-secondary"}`}>{opt.count}</span>
                   </button>
                 ))}
               </div>
 
-              {/* Type + Difficulty filters */}
+              {/* Type + Difficulty */}
               <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
                 <div className="flex overflow-x-auto pb-1 gap-2">
                   {tabOptions.map(tab => {
@@ -435,7 +407,7 @@ export default function Practice() {
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress */}
               {filteredQuestions.length > 0 && (
                 <div className="bg-white dark:bg-card p-4 rounded-2xl border border-border flex items-center gap-4">
                   <span className="text-sm font-bold whitespace-nowrap">
@@ -449,7 +421,7 @@ export default function Practice() {
               )}
             </section>
 
-            {/* Question grid */}
+            {/* Question cards */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {filteredQuestions.length === 0 ? (
                 <div className="col-span-full py-16 text-center">
@@ -477,9 +449,9 @@ export default function Practice() {
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.04 }}
                       onClick={() => toggleQuestion(i)}
-                      className={`relative cursor-pointer bg-white dark:bg-card border rounded-3xl p-6 flex flex-col border-l-4 transition-all hover:shadow-xl hover:-translate-y-0.5 ${srcMeta.leftBorder} ${isCompleted ? "opacity-70" : ""} border-border hover:border-border`}>
+                      className={`relative cursor-pointer bg-white dark:bg-card border border-border rounded-3xl p-6 flex flex-col border-l-4 ${srcMeta.leftBorder} transition-all hover:shadow-xl hover:-translate-y-0.5 ${isCompleted ? "opacity-60" : ""}`}>
 
-                      {/* Source badge + skill target */}
+                      {/* Badges row */}
                       <div className="flex flex-wrap items-center gap-2 mb-3">
                         <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${srcMeta.bg} ${srcMeta.text} ${srcMeta.border}`}>
                           {srcMeta.icon} {srcMeta.shortLabel}
@@ -516,9 +488,9 @@ export default function Practice() {
                             className="overflow-hidden space-y-4 mb-4">
                             <div className="h-px bg-border" />
 
-                            {/* Source context tip */}
+                            {/* Source tip */}
                             <div className={`flex items-start gap-3 p-3 rounded-xl border text-sm font-medium ${srcMeta.bg} ${srcMeta.text} ${srcMeta.border}`}>
-                              {srcMeta.icon}
+                              <Info className="w-4 h-4 shrink-0 mt-0.5" />
                               <p>{srcMeta.tip}</p>
                             </div>
 
@@ -532,7 +504,7 @@ export default function Practice() {
                             {q.followUps?.length > 0 && (
                               <div>
                                 <h4 className="text-sm font-bold mb-2 flex items-center gap-1.5">
-                                  <ChevronDown className="w-4 h-4 text-primary" /> Probing Follow-ups
+                                  <ChevronDown className="w-4 h-4 text-primary" /> Follow-up Questions
                                 </h4>
                                 <ul className="space-y-1.5 text-sm text-muted-foreground">
                                   {q.followUps.map((f, j) => (
@@ -547,12 +519,12 @@ export default function Practice() {
                         )}
                       </AnimatePresence>
 
-                      {/* Card footer */}
+                      {/* Footer */}
                       <div className="flex items-center justify-between pt-4 border-t border-border mt-auto">
                         <button onClick={(e) => toggleComplete(i, e)}
                           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isCompleted ? "bg-green-500 text-white" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
                           <CheckCircle2 className="w-4 h-4" />
-                          {isCompleted ? "Completed" : "Mark Done"}
+                          {isCompleted ? "Done" : "Mark Done"}
                         </button>
                         <span className="text-sm font-bold text-muted-foreground flex items-center gap-1">
                           {isExpanded ? <><ChevronUp className="w-4 h-4" /> Collapse</> : <><ChevronDown className="w-4 h-4" /> Expand</>}
