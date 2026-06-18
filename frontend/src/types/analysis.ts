@@ -38,6 +38,9 @@ export interface PracticeQuestion {
   description: string;
   hint: string;
   followUps: string[];
+  skillTarget: string;
+  source: "jd-verification" | "jd-requirement" | "resume-gap";
+  probeDepth: "surface" | "deep" | "expert";
 }
 
 export interface YouTubeResource {
@@ -51,4 +54,8 @@ export interface PracticeData {
   questions: PracticeQuestion[];
   youtubeResources: YouTubeResource[];
   studyPlan: string;
+  jdWeight: number;
+  gapWeight: number;
+  verificationCount: number;
+  disclaimer: string;
 }

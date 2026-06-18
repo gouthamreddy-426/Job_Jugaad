@@ -10,6 +10,10 @@ interface AnalysisContextType {
   setJobDescription: (v: string) => void;
   resumeText: string;
   setResumeText: (v: string) => void;
+  company: string;
+  setCompany: (v: string) => void;
+  role: string;
+  setRole: (v: string) => void;
   isAnalyzing: boolean;
   setIsAnalyzing: (v: boolean) => void;
   error: string | null;
@@ -22,6 +26,8 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [resumeText, setResumeText] = useState("");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +36,8 @@ export function AnalysisProvider({ children }: { children: React.ReactNode }) {
       result, setResult,
       jobDescription, setJobDescription,
       resumeText, setResumeText,
+      company, setCompany,
+      role, setRole,
       isAnalyzing, setIsAnalyzing,
       error, setError,
     }}>

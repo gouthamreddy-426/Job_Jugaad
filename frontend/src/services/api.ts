@@ -51,14 +51,18 @@ export async function analyzeResume(
 export async function generatePractice(
   jobDescription: string,
   missingSkills: string[],
-  jobTitle?: string,
-  overallFeedback?: string
+  matchedSkills: string[],
+  jobTitle = "",
+  company = "",
+  overallFeedback = ""
 ): Promise<PracticeData> {
   return post<PracticeData>("/practice", {
     jobDescription,
     missingSkills,
-    jobTitle: jobTitle ?? "Software Engineer",
-    overallFeedback: overallFeedback ?? "",
+    matchedSkills,
+    jobTitle,
+    company,
+    overallFeedback,
   });
 }
 

@@ -38,6 +38,9 @@ export interface PracticeQuestion {
   description: string;
   hint: string;
   followUps: string[];
+  skillTarget: string;
+  source: "jd-verification" | "jd-requirement" | "resume-gap";
+  probeDepth: "surface" | "deep" | "expert";
 }
 
 export interface PracticeData {
@@ -49,6 +52,10 @@ export interface PracticeData {
     description: string;
   }[];
   studyPlan: string;
+  jdWeight: number;
+  gapWeight: number;
+  verificationCount: number;
+  disclaimer: string;
 }
 
 export interface ApiResponse<T = unknown> {

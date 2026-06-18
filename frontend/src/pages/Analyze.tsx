@@ -35,7 +35,7 @@ function ParticleBurst({ isExploding }: { isExploding: boolean }) {
 
 export default function Analyze() {
   const [, setLocation] = useLocation();
-  const { setResult, setJobDescription, setResumeText: setCtxResumeText } = useAnalysis();
+  const { setResult, setJobDescription, setResumeText: setCtxResumeText, setCompany: setCtxCompany, setRole: setCtxRole } = useAnalysis();
 
   const [resumeText, setResumeText] = useState("");
   const [jdText, setJdText] = useState("");
@@ -127,6 +127,8 @@ export default function Analyze() {
       setResult(result);
       setJobDescription(jdText);
       setCtxResumeText(resumeText);
+      setCtxCompany(company.trim());
+      setCtxRole(role.trim());
       setTimeout(() => setLocation("/results"), 800);
     } catch (err: unknown) {
       clearInterval(stepInterval);
