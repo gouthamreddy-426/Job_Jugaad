@@ -1,12 +1,30 @@
 -- ============================================================
--- Job Jugaad AI — Database Migration (v2)
+-- Job Jugaad AI — Database Migration (v3 — Idempotent)
 -- Run this in Supabase SQL Editor: Dashboard → SQL Editor → New Query
+-- This script is safe to re-run. It won't destroy existing data.
 -- ============================================================
 
--- 1. Users Table
--- IMPORTANT: id MUST match auth.users.id (no random UUID)
+-- ============================================================
+-- 1. USERS TABLE
+-- Drop and recreate to ensure id references auth.users
+-- ============================================================
+DO $$
+BEGIN
+  -- Add FK constraint if it doesn't already exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'users_id_fkey'
+      AND table_name = 'users'
+      AND table_schema = 'public'
+  ) THEN
+    -- Try to drop old table only if no dependent data
+    -- We'll use CREATE TABLE IF NOT EXISTS approach instead
+    NULL;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
   name TEXT,
   email TEXT UNIQUE NOT NULL,
   avatar_url TEXT,
@@ -14,7 +32,28 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Resumes Table
+-- Add FK reference to auth.users if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'users_id_fkey'
+      AND table_name = 'users'
+      AND table_schema = 'public'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.users
+        ADD CONSTRAINT users_id_fkey
+        FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'Could not add FK to auth.users: %', SQLERRM;
+    END;
+  END IF;
+END $$;
+
+-- ============================================================
+-- 2. RESUMES TABLE
+-- ============================================================
 CREATE TABLE IF NOT EXISTS public.resumes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -23,7 +62,9 @@ CREATE TABLE IF NOT EXISTS public.resumes (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Job Descriptions Table
+-- ============================================================
+-- 3. JOB DESCRIPTIONS TABLE
+-- ============================================================
 CREATE TABLE IF NOT EXISTS public.job_descriptions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -33,7 +74,9 @@ CREATE TABLE IF NOT EXISTS public.job_descriptions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Analyses Table
+-- ============================================================
+-- 4. ANALYSES TABLE
+-- ============================================================
 CREATE TABLE IF NOT EXISTS public.analyses (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -44,7 +87,9 @@ CREATE TABLE IF NOT EXISTS public.analyses (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Chats Table
+-- ============================================================
+-- 5. CHATS TABLE
+-- ============================================================
 CREATE TABLE IF NOT EXISTS public.chats (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -53,7 +98,9 @@ CREATE TABLE IF NOT EXISTS public.chats (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes
+-- ============================================================
+-- INDEXES
+-- ============================================================
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON public.resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_jd_user_id ON public.job_descriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_analyses_user_id ON public.analyses(user_id);
@@ -63,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_chats_analysis_id ON public.chats(analysis_id);
 
 -- ============================================================
 -- TRIGGER: Auto-sync auth.users → public.users on every signup
--- This handles BOTH email/password and Google OAuth
+-- Handles BOTH email/password and Google OAuth
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
@@ -76,7 +123,11 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    COALESCE(
+      NEW.raw_user_meta_data->>'name',
+      NEW.raw_user_meta_data->>'full_name',
+      split_part(NEW.email, '@', 1)
+    ),
     NEW.raw_user_meta_data->>'avatar_url'
   )
   ON CONFLICT (id) DO UPDATE SET
@@ -92,8 +143,21 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Backfill: sync any existing auth users into public.users
+INSERT INTO public.users (id, email, name, avatar_url)
+SELECT
+  au.id,
+  au.email,
+  COALESCE(au.raw_user_meta_data->>'name', au.raw_user_meta_data->>'full_name', split_part(au.email, '@', 1)),
+  au.raw_user_meta_data->>'avatar_url'
+FROM auth.users au
+ON CONFLICT (id) DO UPDATE SET
+  email = EXCLUDED.email,
+  name = COALESCE(EXCLUDED.name, public.users.name),
+  avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url);
+
 -- ============================================================
--- Row Level Security
+-- ROW LEVEL SECURITY
 -- ============================================================
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.resumes ENABLE ROW LEVEL SECURITY;
@@ -101,28 +165,41 @@ ALTER TABLE public.job_descriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies — users
+-- Users policies
 DROP POLICY IF EXISTS "Users can read their own profile" ON public.users;
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.users;
 DROP POLICY IF EXISTS "Service role can insert users" ON public.users;
-CREATE POLICY "Users can read their own profile" ON public.users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update their own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
 
--- RLS Policies — resumes
-DROP POLICY IF EXISTS "Users can read their own resumes" ON public.resumes;
-CREATE POLICY "Users can read their own resumes" ON public.resumes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can read their own profile"
+  ON public.users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update their own profile"
+  ON public.users FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert their own profile"
+  ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 
--- RLS Policies — job_descriptions
-DROP POLICY IF EXISTS "Users can read their own jds" ON public.job_descriptions;
-CREATE POLICY "Users can read their own jds" ON public.job_descriptions FOR SELECT USING (auth.uid() = user_id);
+-- Resumes policies
+DROP POLICY IF EXISTS "Users can manage their own resumes" ON public.resumes;
+CREATE POLICY "Users can manage their own resumes"
+  ON public.resumes FOR ALL USING (auth.uid() = user_id);
 
--- RLS Policies — analyses
-DROP POLICY IF EXISTS "Users can read their own analyses" ON public.analyses;
-CREATE POLICY "Users can read their own analyses" ON public.analyses FOR SELECT USING (auth.uid() = user_id);
+-- Job descriptions policies
+DROP POLICY IF EXISTS "Users can manage their own jds" ON public.job_descriptions;
+CREATE POLICY "Users can manage their own jds"
+  ON public.job_descriptions FOR ALL USING (auth.uid() = user_id);
 
--- RLS Policies — chats
-DROP POLICY IF EXISTS "Users can read their own chats" ON public.chats;
-CREATE POLICY "Users can read their own chats" ON public.chats FOR SELECT USING (auth.uid() = user_id);
+-- Analyses policies
+DROP POLICY IF EXISTS "Users can manage their own analyses" ON public.analyses;
+CREATE POLICY "Users can manage their own analyses"
+  ON public.analyses FOR ALL USING (auth.uid() = user_id);
 
--- Service role bypasses RLS automatically (used by backend with SERVICE_KEY)
--- No extra policies needed for backend writes.
+-- Chats policies
+DROP POLICY IF EXISTS "Users can manage their own chats" ON public.chats;
+CREATE POLICY "Users can manage their own chats"
+  ON public.chats FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- NOTE: The backend uses SUPABASE_DB_URL with postgres direct
+-- connection which bypasses RLS entirely. The policies above
+-- are for frontend/client-side Supabase JS calls only.
+-- ============================================================

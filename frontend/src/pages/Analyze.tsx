@@ -4,7 +4,6 @@ import { useLocation, Link } from "wouter";
 import { useAnalysis } from "@/context/AnalysisContext";
 import { extractTextFromPdf } from "@/utils/pdfExtract";
 import { analyzeResume } from "@/services/api";
-import { mockAnalyze } from "@/services/mockAnalyzer";
 import {
   UploadCloud, FileText, Briefcase, ChevronRight,
   Loader2, ScanLine, BrainCircuit, Activity,
@@ -14,17 +13,14 @@ import {
 
 function ParticleBurst({ isExploding }: { isExploding: boolean }) {
   if (!isExploding) return null;
-  const particles = Array.from({ length: 8 });
   return (
     <>
-      {particles.map((_, i) => {
-        const angle = (i / particles.length) * 2 * Math.PI;
-        const radius = 60;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
+      {Array.from({ length: 8 }).map((_, i) => {
+        const angle = (i / 8) * 2 * Math.PI;
+        const x = Math.cos(angle) * 60;
+        const y = Math.sin(angle) * 60;
         return (
-          <motion.div
-            key={i}
+          <motion.div key={i}
             className="absolute w-2 h-2 rounded-full bg-white z-0"
             initial={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             animate={{ opacity: 0, x, y, scale: 0 }}
@@ -43,6 +39,8 @@ export default function Analyze() {
 
   const [resumeText, setResumeText] = useState("");
   const [jdText, setJdText] = useState("");
+  const [company, setCompany] = useState("");
+  const [role, setRole] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +65,7 @@ export default function Analyze() {
   ];
 
   const handleFileSelect = async (file: File) => {
-    if (!file || file.type !== "application/pdf") {
-      setError("Please upload a valid PDF file.");
-      return;
-    }
+    if (!file || file.type !== "application/pdf") { setError("Please upload a valid PDF file."); return; }
     setError(null);
     setFileData({ name: file.name, size: (file.size / 1024 / 1024).toFixed(2) + " MB" });
     setIsExtracting(true);
@@ -79,7 +74,7 @@ export default function Analyze() {
       setResumeText(text);
       setFileData(prev => prev ? { ...prev, wordCount: text.split(/\s+/).length } : null);
     } catch {
-      setError("Failed to extract text from PDF. Please try pasting the text instead.");
+      setError("Failed to extract PDF. Please try pasting the text instead.");
       setFileData(null);
       setShowPasteFallback(true);
     } finally {
@@ -88,10 +83,7 @@ export default function Analyze() {
   };
 
   const handleJdFileSelect = async (file: File) => {
-    if (!file || file.type !== "application/pdf") {
-      setError("Please upload a valid PDF file for the job description.");
-      return;
-    }
+    if (!file || file.type !== "application/pdf") { setError("Please upload a valid PDF for the job description."); return; }
     setError(null);
     setJdFileData({ name: file.name, size: (file.size / 1024 / 1024).toFixed(2) + " MB" });
     setJdIsExtracting(true);
@@ -110,17 +102,10 @@ export default function Analyze() {
 
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const onDragLeave = () => setIsDragging(false);
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setIsDragging(false);
-    if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
-  };
-
+  const onDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]); };
   const onJdDragOver = (e: React.DragEvent) => { e.preventDefault(); setJdIsDragging(true); };
   const onJdDragLeave = () => setJdIsDragging(false);
-  const onJdDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setJdIsDragging(false);
-    if (e.dataTransfer.files[0]) handleJdFileSelect(e.dataTransfer.files[0]);
-  };
+  const onJdDrop = (e: React.DragEvent) => { e.preventDefault(); setJdIsDragging(false); if (e.dataTransfer.files[0]) handleJdFileSelect(e.dataTransfer.files[0]); };
 
   const handleAnalyze = async () => {
     if (!resumeText.trim() || !jdText.trim()) return;
@@ -131,29 +116,18 @@ export default function Analyze() {
     setLoadingStep(0);
 
     const stepInterval = setInterval(() => {
-      setLoadingStep(prev => {
-        if (prev < steps.length - 1) return prev + 1;
-        clearInterval(stepInterval);
-        return prev;
-      });
+      setLoadingStep(prev => { if (prev < steps.length - 1) return prev + 1; clearInterval(stepInterval); return prev; });
     }, 1500);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      const result = apiUrl
-        ? await analyzeResume(resumeText, jdText)
-        : mockAnalyze(resumeText, jdText);
-
+      // Always call the real API — never use mock data
+      const result = await analyzeResume(resumeText, jdText, company.trim(), role.trim());
       clearInterval(stepInterval);
       setLoadingStep(steps.length - 1);
-
       setResult(result);
       setJobDescription(jdText);
       setCtxResumeText(resumeText);
-
-      setTimeout(() => {
-        setLocation("/results");
-      }, 800);
+      setTimeout(() => setLocation("/results"), 800);
     } catch (err: unknown) {
       clearInterval(stepInterval);
       setIsAnalyzing(false);
@@ -183,8 +157,7 @@ export default function Analyze() {
   ];
 
   return (
-    <div
-      className="min-h-screen font-sans relative"
+    <div className="min-h-screen font-sans relative"
       style={{
         backgroundColor: "hsl(var(--background))",
         backgroundImage: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)",
@@ -214,16 +187,15 @@ export default function Analyze() {
 
       <main className="max-w-5xl mx-auto px-4 py-12 pb-24">
         {error && !isAnalyzing && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-600">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3 text-red-600 dark:text-red-400">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold">Error</h4>
-              <p className="text-sm font-medium">{error}</p>
-            </div>
+            <div><h4 className="font-bold">Error</h4><p className="text-sm font-medium">{error}</p></div>
           </motion.div>
         )}
 
         <div className="space-y-12">
+          {/* Step 1 — Resume */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-extrabold flex items-center gap-2 text-foreground">
@@ -243,7 +215,7 @@ export default function Analyze() {
                   <motion.div key={i} className="absolute text-muted-foreground opacity-10"
                     style={{ top: item.top, left: (item as { left?: string }).left, right: (item as { right?: string }).right }}
                     animate={{ y: [0, -12, 0], rotate: [0, 5, 0] }}
-                    transition={{ repeat: Infinity, duration: isDragging ? (3 + i) / 2 : 3 + i, delay: i * 0.7 }}>
+                    transition={{ repeat: Infinity, duration: 3 + i, delay: i * 0.7 }}>
                     <item.Icon className="w-16 h-16" />
                   </motion.div>
                 ))}
@@ -253,7 +225,8 @@ export default function Analyze() {
                   </div>
                   <h3 className="text-xl font-bold text-foreground mb-1">Drop your resume PDF here</h3>
                   <p className="text-muted-foreground font-medium mb-4">or click to browse files</p>
-                  <button onClick={(e) => { e.stopPropagation(); setShowPasteFallback(true); }} className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); setShowPasteFallback(true); }}
+                    className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
                     <Type className="w-4 h-4" /> Paste text instead
                   </button>
                 </div>
@@ -262,7 +235,7 @@ export default function Analyze() {
             ) : fileData ? (
               <div className="w-full p-8 bg-white dark:bg-card border border-border rounded-3xl flex flex-col gap-4 shadow-sm border-l-8 border-l-green-500">
                 <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+                  <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 shrink-0">
                     <FileText className="w-8 h-8" />
                   </div>
                   <div className="flex-1">
@@ -274,13 +247,14 @@ export default function Analyze() {
                           <Loader2 className="w-3 h-3 animate-spin" /> Extracting text...
                         </span>
                       ) : (
-                        <span className="text-sm font-bold text-green-600 flex items-center gap-1.5 bg-green-50 px-2 py-0.5 rounded-md">
+                        <span className="text-sm font-bold text-green-600 flex items-center gap-1.5 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-md">
                           <CheckCircle2 className="w-3 h-3" /> Extracted {fileData.wordCount ?? 0} words
                         </span>
                       )}
                     </div>
                   </div>
-                  <button onClick={() => { setFileData(null); setResumeText(""); setShowPasteFallback(false); }} className="px-4 py-2 border border-border rounded-xl text-sm font-bold text-foreground hover:bg-secondary transition-colors">
+                  <button onClick={() => { setFileData(null); setResumeText(""); setShowPasteFallback(false); }}
+                    className="px-4 py-2 border border-border rounded-xl text-sm font-bold text-foreground hover:bg-secondary transition-colors">
                     Swap file
                   </button>
                 </div>
@@ -300,6 +274,7 @@ export default function Analyze() {
             )}
           </section>
 
+          {/* Step 2 — Job Description */}
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-extrabold flex items-center gap-2 text-foreground">
@@ -307,6 +282,27 @@ export default function Analyze() {
                 Step 2: Job Description
               </h2>
             </div>
+
+            {/* Optional: Company + Role */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="relative">
+                <Building className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text" value={company} onChange={(e) => setCompany(e.target.value)}
+                  placeholder="Company name (optional)"
+                  className="w-full pl-10 pr-4 py-3 bg-white dark:bg-card border border-border rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Target className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text" value={role} onChange={(e) => setRole(e.target.value)}
+                  placeholder="Role / job title (optional)"
+                  className="w-full pl-10 pr-4 py-3 bg-white dark:bg-card border border-border rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all"
+                />
+              </div>
+            </div>
+
             {!jdFileData && !showJdPasteFallback ? (
               <div
                 onDragOver={onJdDragOver} onDragLeave={onJdDragLeave} onDrop={onJdDrop}
@@ -319,7 +315,7 @@ export default function Analyze() {
                   <motion.div key={i} className="absolute text-muted-foreground opacity-10"
                     style={{ top: item.top, left: (item as { left?: string }).left, right: (item as { right?: string }).right }}
                     animate={{ y: [0, -12, 0], rotate: [0, 5, 0] }}
-                    transition={{ repeat: Infinity, duration: jdIsDragging ? (3 + i) / 2 : 3 + i, delay: i * 0.7 }}>
+                    transition={{ repeat: Infinity, duration: 3 + i, delay: i * 0.7 }}>
                     <item.Icon className="w-16 h-16" />
                   </motion.div>
                 ))}
@@ -329,7 +325,8 @@ export default function Analyze() {
                   </div>
                   <h3 className="text-xl font-bold text-foreground mb-1">Drop job description PDF here</h3>
                   <p className="text-muted-foreground font-medium mb-4">or click to browse files</p>
-                  <button onClick={(e) => { e.stopPropagation(); setShowJdPasteFallback(true); }} className="text-accent text-sm font-bold hover:underline flex items-center gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); setShowJdPasteFallback(true); }}
+                    className="text-accent text-sm font-bold hover:underline flex items-center gap-1">
                     <Type className="w-4 h-4" /> Paste text instead
                   </button>
                 </div>
@@ -338,7 +335,7 @@ export default function Analyze() {
             ) : jdFileData ? (
               <div className="w-full p-8 bg-white dark:bg-card border border-border rounded-3xl flex flex-col gap-4 shadow-sm border-l-8 border-l-green-500">
                 <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+                  <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 shrink-0">
                     <Briefcase className="w-8 h-8" />
                   </div>
                   <div className="flex-1">
@@ -350,13 +347,14 @@ export default function Analyze() {
                           <Loader2 className="w-3 h-3 animate-spin" /> Extracting text...
                         </span>
                       ) : (
-                        <span className="text-sm font-bold text-green-600 flex items-center gap-1.5 bg-green-50 px-2 py-0.5 rounded-md">
+                        <span className="text-sm font-bold text-green-600 flex items-center gap-1.5 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-md">
                           <CheckCircle2 className="w-3 h-3" /> Extracted {jdFileData.wordCount ?? 0} words
                         </span>
                       )}
                     </div>
                   </div>
-                  <button onClick={() => { setJdFileData(null); setJdText(""); setShowJdPasteFallback(false); }} className="px-4 py-2 border border-border rounded-xl text-sm font-bold text-foreground hover:bg-secondary transition-colors">
+                  <button onClick={() => { setJdFileData(null); setJdText(""); setShowJdPasteFallback(false); }}
+                    className="px-4 py-2 border border-border rounded-xl text-sm font-bold text-foreground hover:bg-secondary transition-colors">
                     Swap file
                   </button>
                 </div>
@@ -382,6 +380,7 @@ export default function Analyze() {
             )}
           </section>
 
+          {/* Analyze Button */}
           <section className="pt-6">
             <button
               onClick={handleAnalyze}
@@ -409,7 +408,8 @@ export default function Analyze() {
               <div className="w-full max-w-md bg-white dark:bg-card rounded-3xl shadow-2xl border border-border p-8 relative z-10">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-secondary">
                   <motion.div className="h-full bg-gradient-to-r from-primary to-accent"
-                    initial={{ width: "0%" }} animate={{ width: `${((loadingStep + 1) / steps.length) * 100}%` }}
+                    initial={{ width: "0%" }}
+                    animate={{ width: `${((loadingStep + 1) / steps.length) * 100}%` }}
                     transition={{ duration: 0.5 }} />
                 </div>
                 <div className="space-y-8 mt-4">
@@ -417,8 +417,8 @@ export default function Analyze() {
                     const isActive = idx === loadingStep;
                     const isPast = idx < loadingStep;
                     return (
-                      <div key={idx} className={`flex items-center gap-4 transition-all duration-300 ${isActive ? "opacity-100 scale-105 transform origin-left" : isPast ? "opacity-50" : "opacity-30"}`}>
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-primary/10 text-primary" : isPast ? "bg-green-50 text-green-500" : "bg-secondary text-muted-foreground"}`}>
+                      <div key={idx} className={`flex items-center gap-4 transition-all duration-300 ${isActive ? "opacity-100 scale-105 origin-left" : isPast ? "opacity-50" : "opacity-30"}`}>
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-primary/10 text-primary" : isPast ? "bg-green-50 dark:bg-green-900/20 text-green-500" : "bg-secondary text-muted-foreground"}`}>
                           {isPast ? <CheckCircle2 className="w-6 h-6" /> : isActive ? <Loader2 className="w-6 h-6 animate-spin" /> : step.icon}
                         </div>
                         <span className={`font-bold text-lg ${isActive ? "text-foreground" : "text-muted-foreground"}`}>{step.text}</span>
@@ -428,7 +428,7 @@ export default function Analyze() {
                 </div>
                 <div className="mt-10 pt-6 border-t border-border text-center">
                   <p className="text-sm font-bold text-muted-foreground flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Estimated time: ~15 seconds
+                    <Loader2 className="w-4 h-4 animate-spin" /> Powered by Groq AI — ~15 seconds
                   </p>
                 </div>
               </div>
