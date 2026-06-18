@@ -1,2 +1,0 @@
-- [Supabase auth + public tables sync](supabase-auth-sync.md) — public.users.id MUST reference auth.users.id; use a trigger to auto-sync on signup
-- [Email verification bypass](email-verification-bypass.md) — use backend /api/auth/signup with admin.createUser({email_confirm:true}) to skip email confirmation

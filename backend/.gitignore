@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+
+# Frontend build
+frontend/dist/
+
+# Backend build
+backend/dist/
+
+# Database migrations (keep migrations dir but not lock file)
+database/migrations/*.sql
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
