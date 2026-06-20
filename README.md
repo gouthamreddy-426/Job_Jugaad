@@ -1,6 +1,6 @@
 # Job Jugaad AI 🚀
 
-**Job Jugaad AI** is a comprehensive, AI-powered career readiness platform designed to bridge the gap between candidates and their dream jobs. By leveraging advanced Generative AI and RAG (Retrieval-Augmented Generation) architectures, the platform provides deep, actionable insights into resume optimization and interview preparation.
+**Job Jugaad AI** is a comprehensive, AI-powered career readiness platform designed to bridge the gap between candidates and their dream jobs. By leveraging advanced Generative AI and context-aware prompt engineering, the platform provides deep, actionable insights into resume optimization and interview preparation.
 
 ---
 
